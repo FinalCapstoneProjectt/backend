@@ -139,6 +139,26 @@ func NewRouter(app *App) *gin.Engine {
 				admin.DELETE("/users/:id", app.UserHandler.DeleteUser)
 				admin.GET("/stats", app.UserHandler.GetDashboardStats) 
 				admin.PATCH("/proposals/:id/assign", app.ProposalHandler.AssignAdvisor)
+				// Audit Logs
+				admin.GET("/audit-logs", app.AuditHandler.GetAuditLogs)
+				admin.GET("/audit-logs/:id", app.AuditHandler.GetAuditLog)
+			}
+
+			// Notifications
+			notifications := protected.Group("/notifications")
+			{
+				notifications.GET("", app.NotificationHandler.GetNotifications)
+				notifications.GET("/unread-count", app.NotificationHandler.GetUnreadCount)
+				notifications.POST("/:id/mark-read", app.NotificationHandler.MarkAsRead)
+				notifications.POST("/mark-all-read", app.NotificationHandler.MarkAllAsRead)
+			}
+
+			// AI Service
+			ai := protected.Group("/ai")
+			{
+				ai.GET("/health", app.AIHandler.HealthCheck)
+				ai.POST("/analyze-proposal", app.AIHandler.AnalyzeProposal)
+				ai.GET("/check-similarity", RoleMiddleware("advisor"), app.AIHandler.CheckSimilarity)
 			}
 
 			// Projects (Team creators can manage, all can view)
@@ -149,7 +169,9 @@ func NewRouter(app *App) *gin.Engine {
 				projects.GET("/:id", app.ProjectHandler.GetProject)
 				projects.PUT("/:id", app.ProjectHandler.UpdateProject)
 				projects.POST("/:id/publish", app.ProjectHandler.PublishProject)
-				//projects.GET("/:project_id/documentation", app.DocumentationHandler.GetProjectDocuments)
+				// Project Reviews
+				projects.POST("/:id/reviews", app.ReviewHandler.CreateReview)
+				projects.GET("/:id/reviews", app.ReviewHandler.GetProjectReviews)
 			}
 
 			// Documentation
