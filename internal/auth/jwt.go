@@ -76,19 +76,14 @@ func ValidateToken(tokenString string, cfg config.Config) (*TokenClaims, error) 
 	return claims, nil
 }
 
-// RefreshToken generates a new token if the old one is close to expiring
+// RefreshToken generates a new token from a valid existing token
 func RefreshToken(oldTokenString string, cfg config.Config) (string, time.Time, error) {
 	claims, err := ValidateToken(oldTokenString, cfg)
 	if err != nil {
 		return "", time.Time{}, err
 	}
 
-	// Only refresh if token is within 1 hour of expiring
-	if claims.ExpiresAt != nil && time.Until(claims.ExpiresAt.Time) > time.Hour {
-		return "", time.Time{}, errors.New("token does not need refresh yet")
-	}
-
-	// Create new token with same claims
+	// Create new token with same claims but extended expiration
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims.ExpiresAt = jwt.NewNumericDate(expirationTime)
 	claims.IssuedAt = jwt.NewNumericDate(time.Now())
@@ -98,7 +93,7 @@ func RefreshToken(oldTokenString string, cfg config.Config) (string, time.Time, 
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("failed to sign new token: %w", err)
 	}
-	return tokenString, expirationTime, err
+	return tokenString, expirationTime, nil
 }
 
 type JWTService struct {

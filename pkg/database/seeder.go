@@ -117,7 +117,7 @@ func SeedDatabase(db *gorm.DB) error {
 	log.Println("✓ Database seeded successfully!")
 	log.Println("\nTest Credentials:")
 	log.Println("─────────────────────────────────────────")
-	log.Println("Admin:   admin@astu.edu.et   / Admin@123")
+	log.Println("Admin:   head_cs@astu.edu.et / Admin@123")
 	log.Println("Advisor: teacher@astu.edu.et / Teacher@123")
 	log.Println("Student: student@astu.edu.et / Student@123")
 	log.Println("─────────────────────────────────────────")

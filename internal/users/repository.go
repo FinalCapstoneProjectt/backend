@@ -62,13 +62,8 @@ func (r *repository) GetByEmail(email string) (*domain.User, error) {
 func (r *repository) GetAll(filters map[string]interface{}) ([]domain.User, error) {
 	var users []domain.User
 	query := r.db.
-        Preload("Team").
-        Preload("Team.Members").        // Load Join Table
-        Preload("Team.Members.User").   // 👈 CRITICAL: Load User Details
-        Preload("Team.Department").
-        Preload("Versions", func(db *gorm.DB) *gorm.DB {
-            return db.Order("version_number DESC")
-        })
+		Preload("University").
+		Preload("Department")
 
 
 	if role, ok := filters["role"]; ok {
