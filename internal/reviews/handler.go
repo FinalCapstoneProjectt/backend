@@ -21,7 +21,7 @@ func NewHandler(service *Service) *Handler {
 
 // CreateReviewRequest represents the request body for creating a review
 type CreateReviewRequest struct {
-	Rating  int    `json:"rating" binding:"required,min=1,max=5"`
+	Rate    int    `json:"rate" binding:"required,min=1,max=5"`
 	Comment string `json:"comment" binding:"max=500"`
 }
 
