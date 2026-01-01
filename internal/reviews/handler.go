@@ -61,7 +61,7 @@ func (h *Handler) CreateReview(c *gin.Context) {
 		return
 	}
 
-	review, avgRating, err := h.service.CreateReview(userClaims.UserID, uint(projectID), req.Rating, req.Comment)
+	review, avgRating, err := h.service.CreateReview(userClaims.UserID, uint(projectID), req.Rate, req.Comment)
 	if err != nil {
 		switch err.Error() {
 		case "project not found":
