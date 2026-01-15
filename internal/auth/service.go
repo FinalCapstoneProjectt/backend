@@ -16,6 +16,10 @@ type Service interface {
 	Login(req LoginRequest, ipAddress string, userAgent string, requestID string) (*LoginResponse, error)
 	ValidateToken(token string) (*TokenClaims, error)
 	RefreshToken(token string) (string, time.Time, error)
+	ForgotPassword(email string) (string, error)
+	ResetPassword(token string, newPassword string) error
+	UpdateProfile(userID uint, name string, profilePhoto string) (*domain.User, error)
+	ChangePassword(userID uint, oldPassword, newPassword string) error
 }
 
 type service struct {
@@ -156,4 +160,85 @@ func (s *service) ValidateToken(token string) (*TokenClaims, error) {
 // RefreshToken generates a new token if the current one is expiring soon
 func (s *service) RefreshToken(token string) (string, time.Time, error) {
 	return RefreshToken(token, s.cfg)
+}
+
+// ForgotPassword generates a password reset token (mock - would normally send email)
+func (s *service) ForgotPassword(email string) (string, error) {
+	user, err := s.repo.FindByEmail(email)
+	if err != nil {
+		// Don't reveal if email exists or not
+		return "", nil
+	}
+
+	// Generate a reset token (in production, store this and send via email)
+	resetToken, _, err := GenerateToken(user, s.cfg)
+	if err != nil {
+		return "", errors.New("failed to generate reset token")
+	}
+
+	// Log the action
+	s.auditLogger.LogAction("user", user.ID, "password_reset_requested", nil, string(user.Role), user.Email, nil, nil, "", "", "", "")
+
+	return resetToken, nil
+}
+
+// ResetPassword resets user password with a valid token
+func (s *service) ResetPassword(token string, newPassword string) error {
+	// Validate the reset token
+	claims, err := ValidateToken(token, s.cfg)
+	if err != nil {
+		return errors.New("invalid or expired reset token")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	// Update password
+	return s.repo.UpdatePassword(claims.UserID, string(hashedPassword))
+}
+
+// UpdateProfile updates user profile information
+func (s *service) UpdateProfile(userID uint, name string, profilePhoto string) (*domain.User, error) {
+	user, err := s.repo.FindByID(userID)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	if name != "" {
+		user.Name = name
+	}
+	if profilePhoto != "" {
+		user.ProfilePhoto = profilePhoto
+	}
+
+	if err := s.repo.Update(user); err != nil {
+		return nil, err
+	}
+
+	user.Password = ""
+	return user, nil
+}
+
+// ChangePassword changes user password (requires old password)
+func (s *service) ChangePassword(userID uint, oldPassword, newPassword string) error {
+	user, err := s.repo.FindByID(userID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	// Verify old password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
+		return errors.New("current password is incorrect")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	return s.repo.UpdatePassword(userID, string(hashedPassword))
 }

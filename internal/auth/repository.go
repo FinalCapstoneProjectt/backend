@@ -13,6 +13,7 @@ type Repository interface {
 	FindByEmail(email string) (*domain.User, error)
 	FindByID(id uint) (*domain.User, error)
 	Update(user *domain.User) error
+	UpdatePassword(userID uint, hashedPassword string) error
 	IncrementFailedLogins(userID uint) error
 	ResetFailedLogins(userID uint) error
 	UpdateLastLogin(userID uint) error
@@ -64,6 +65,13 @@ func (r *repository) FindByID(id uint) (*domain.User, error) {
 
 func (r *repository) Update(user *domain.User) error {
 	return r.db.Save(user).Error
+}
+
+func (r *repository) UpdatePassword(userID uint, hashedPassword string) error {
+	return r.db.Model(&domain.User{}).
+		Where("id = ?", userID).
+		Update("password", hashedPassword).
+		Error
 }
 
 func (r *repository) IncrementFailedLogins(userID uint) error {

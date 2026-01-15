@@ -148,3 +148,146 @@ func (h *Handler) GetProfile(c *gin.Context) {
 		"department_id": departmentID,
 	})
 }
+
+// ForgotPassword initiates password reset
+// @Summary Request password reset
+// @Description Sends a password reset link to the user's email
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body ForgotPasswordRequest true "Email address"
+// @Success 200 {object} response.Response
+// @Router /auth/forgot-password [post]
+func (h *Handler) ForgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	resetToken, err := h.service.ForgotPassword(req.Email)
+	if err != nil {
+		// Don't reveal error to prevent email enumeration
+		response.JSON(c, http.StatusOK, "If the email exists, a reset link will be sent", nil)
+		return
+	}
+
+	// In production, send email instead of returning token
+	// For demo/development, return the token
+	response.JSON(c, http.StatusOK, "Password reset initiated", gin.H{
+		"reset_token": resetToken,
+		"note":        "In production, this token would be sent via email",
+	})
+}
+
+// ResetPassword resets password with token
+// @Summary Reset password
+// @Description Reset password using the reset token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body ResetPasswordRequest true "Reset token and new password"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Router /auth/reset-password [post]
+func (h *Handler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	err := h.service.ResetPassword(req.Token, req.NewPassword)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Password reset successfully", nil)
+}
+
+// UpdateProfile updates user profile
+// @Summary Update profile
+// @Description Update the authenticated user's profile
+// @Tags Auth
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body UpdateProfileRequest true "Profile data"
+// @Success 200 {object} response.Response{data=domain.User}
+// @Failure 400 {object} response.ErrorResponse
+// @Router /auth/profile [put]
+func (h *Handler) UpdateProfile(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "User not authenticated", nil)
+		return
+	}
+
+	var req UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	user, err := h.service.UpdateProfile(userID.(uint), req.Name, req.ProfilePhoto)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to update profile", err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Profile updated successfully", user)
+}
+
+// ChangePassword changes user password
+// @Summary Change password
+// @Description Change password for authenticated user (requires current password)
+// @Tags Auth
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body ChangePasswordRequest true "Password change data"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Router /auth/change-password [post]
+func (h *Handler) ChangePassword(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "User not authenticated", nil)
+		return
+	}
+
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	err := h.service.ChangePassword(userID.(uint), req.CurrentPassword, req.NewPassword)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Password changed successfully", nil)
+}
+
+// Request structs for new endpoints
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ResetPasswordRequest struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+type UpdateProfileRequest struct {
+	Name         string `json:"name"`
+	ProfilePhoto string `json:"profile_photo"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
+}
