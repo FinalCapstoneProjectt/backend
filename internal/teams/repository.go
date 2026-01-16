@@ -19,7 +19,11 @@ type Repository interface {
 	GetMember(teamID, userID uint) (*domain.TeamMember, error)
 	UpdateMemberStatus(teamID, userID uint, status enums.InvitationStatus) error
 	Delete(id uint) error
-	UpdateMemberRole(teamID, userID uint, role string) error // <--- Added
+	UpdateMemberRole(teamID, userID uint, role string) error
+	
+	// Advisor management
+	AssignAdvisor(teamID, advisorID uint) error
+	RemoveAdvisor(teamID uint) error
 }
 
 type repository struct {
@@ -134,4 +138,16 @@ func (r *repository) UpdateMemberStatus(teamID, userID uint, status enums.Invita
 	return r.db.Model(&domain.TeamMember{}).
 		Where("team_id = ? AND user_id = ?", teamID, userID).
 		Update("invitation_status", status).Error
+}
+
+func (r *repository) AssignAdvisor(teamID, advisorID uint) error {
+	return r.db.Model(&domain.Team{}).
+		Where("id = ?", teamID).
+		Update("advisor_id", advisorID).Error
+}
+
+func (r *repository) RemoveAdvisor(teamID uint) error {
+	return r.db.Model(&domain.Team{}).
+		Where("id = ?", teamID).
+		Update("advisor_id", nil).Error
 }
