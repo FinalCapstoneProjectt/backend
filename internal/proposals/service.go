@@ -265,3 +265,65 @@ func (s *Service) DeleteProposal(id uint) error {
 	}
 	return s.repo.Delete(id)
 }
+
+// StartReview transitions proposal from submitted to under_review
+func (s *Service) StartReview(proposalID uint, advisorID uint) error {
+	proposal, err := s.repo.GetByID(proposalID)
+	if err != nil {
+		return errors.New("proposal not found")
+	}
+
+	// Rule: Only assigned advisor can start review
+	if proposal.AdvisorID == nil || *proposal.AdvisorID != advisorID {
+		return errors.New("only assigned advisor can start review")
+	}
+
+	// Rule: Must be in submitted status
+	if proposal.Status != enums.ProposalStatusSubmitted {
+		return errors.New("proposal must be in submitted status to start review")
+	}
+
+	proposal.Status = enums.ProposalStatusUnderReview
+	return s.repo.Update(proposal)
+}
+
+// CreateVersion creates a new version for a proposal
+func (s *Service) CreateVersion(proposalID uint, input ProposalInput, userID uint) (*domain.ProposalVersion, error) {
+	proposal, err := s.repo.GetByID(proposalID)
+	if err != nil {
+		return nil, errors.New("proposal not found")
+	}
+
+	// Rule: Can only create new version if status allows
+	if !CanEdit(proposal.Status) {
+		return nil, errors.New("cannot create version: proposal is locked")
+	}
+
+	// Get latest version number
+	lastVer, err := s.repo.GetLatestVersion(proposalID)
+	if err != nil {
+		return nil, err
+	}
+
+	newVer := &domain.ProposalVersion{
+		ProposalID:       proposalID,
+		CreatedBy:        userID,
+		VersionNumber:    lastVer.VersionNumber + 1,
+		Title:            input.Title,
+		Abstract:         input.Abstract,
+		ProblemStatement: input.ProblemStatement,
+		Objectives:       input.Objectives,
+		Methodology:      input.Methodology,
+		ExpectedTimeline: input.Timeline,
+		ExpectedOutcomes: input.ExpectedOutcomes,
+		FileURL:          nil,
+		FileHash:         "",
+		FileSizeBytes:    0,
+	}
+
+	if err := s.repo.CreateVersion(newVer); err != nil {
+		return nil, err
+	}
+
+	return newVer, nil
+}
