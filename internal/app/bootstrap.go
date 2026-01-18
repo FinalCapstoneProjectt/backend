@@ -41,6 +41,7 @@ type App struct {
 	ReviewHandler        *reviews.Handler
 	AIHandler            *ai_checker.Handler
 	AuditHandler         *audit.Handler
+	FileHandler          *files.Handler
 }
 
 func Bootstrap(cfg config.Config) (*App, error) {
@@ -168,6 +169,10 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	auditHandler := audit.NewHandler(auditRepo)
 	log.Println("Audit handler initialized")
 
+	// 17. Initialize File Handler
+	fileHandler := files.NewHandler(db)
+	log.Println("File handler initialized")
+
 	return &App{
 		Config:               cfg,
 		DB:                   db,
@@ -186,5 +191,6 @@ func Bootstrap(cfg config.Config) (*App, error) {
 		ReviewHandler:        reviewHandler,
 		AIHandler:            aiHandler,
 		AuditHandler:         auditHandler,
+		FileHandler:          fileHandler,
 	}, nil
 }

@@ -34,22 +34,21 @@ func NewRouter(app *App) *gin.Engine {
 	// API v1 Routes
 	v1 := r.Group("/api/v1")
 	{
+		// ============ PUBLIC ROUTES (No Auth Required) ============
+		
+		// Universities
+		universities := v1.Group("/universities")
+		{
+			universities.GET("", app.UniversityHandler.GetUniversities)
+			universities.GET("/:id", app.UniversityHandler.GetUniversity)
+		}
 
-		 {
-        // Universities
-        universities := v1.Group("/universities")
-        {
-            universities.GET("", app.UniversityHandler.GetUniversities)
-            universities.GET("/:id", app.UniversityHandler.GetUniversity)
-        }
-
-        // Departments
-        departments := v1.Group("/departments")
-        {
-            departments.GET("", app.DepartmentHandler.GetDepartments)
-            departments.GET("/:id", app.DepartmentHandler.GetDepartment)
-        }
-    }
+		// Departments
+		departments := v1.Group("/departments")
+		{
+			departments.GET("", app.DepartmentHandler.GetDepartments)
+			departments.GET("/:id", app.DepartmentHandler.GetDepartment)
+		}
 
 		// Public Auth Routes
 		authRoutes := v1.Group("/auth")
@@ -57,17 +56,36 @@ func NewRouter(app *App) *gin.Engine {
 			authRoutes.POST("/register", app.AuthHandler.Register)
 			authRoutes.POST("/login", app.AuthHandler.Login)
 			authRoutes.POST("/refresh", app.AuthHandler.RefreshToken)
+			authRoutes.POST("/forgot-password", app.AuthHandler.ForgotPassword)
+			authRoutes.POST("/reset-password", app.AuthHandler.ResetPassword)
 		}
 
+		// Public Project Routes (No Auth Required)
+		publicProjects := v1.Group("/projects/public")
+		{
+			publicProjects.GET("", app.ProjectHandler.GetPublicProjects)
+			publicProjects.GET("/:id", app.ProjectHandler.GetPublicProject)
+		}
+
+		// Public File Downloads (for public projects)
+		v1.GET("/files/projects/:project_id/*filename", app.FileHandler.DownloadProjectFile)
+
 		
-		// Protected Routes (require authentication)
+		// ============ PROTECTED ROUTES (Auth Required) ============
 		protected := v1.Group("")
 		protected.Use(AuthMiddleware(app.Config))
 		{
-			// Auth Profile
+			// Auth Profile & Password Management
 			protected.GET("/auth/profile", app.AuthHandler.GetProfile)
-			//  NEW: Peer List for Invites
+			protected.PUT("/auth/profile", app.AuthHandler.UpdateProfile)
+			protected.POST("/auth/change-password", app.AuthHandler.ChangePassword)
+
+			// Peer List for Invites
 			protected.GET("/users/peers", app.UserHandler.GetPeers)
+
+			// Secure File Downloads (for proposals)
+			protected.GET("/files/proposals/:proposal_id/*filename", app.FileHandler.DownloadProposalFile)
+
 			// Teams (Students)
 			teams := protected.Group("/teams")
 			{
@@ -78,41 +96,42 @@ func NewRouter(app *App) *gin.Engine {
 				teams.POST("/:id/invite", RoleMiddleware("student"), app.TeamHandler.InviteMember)
 				teams.POST("/:id/invitation/respond", RoleMiddleware("student"), app.TeamHandler.RespondToInvitation)
 				teams.DELETE("/:id/members/:memberId", RoleMiddleware("student"), app.TeamHandler.RemoveMember)
-    			teams.POST("/:id/transfer-leadership", RoleMiddleware("student"), app.TeamHandler.TransferLeadership)
-    			teams.DELETE("/:id", RoleMiddleware("student"), app.TeamHandler.DeleteTeam)
+				teams.POST("/:id/transfer-leadership", RoleMiddleware("student"), app.TeamHandler.TransferLeadership)
+				teams.DELETE("/:id", RoleMiddleware("student"), app.TeamHandler.DeleteTeam)
 				teams.POST("/:id/finalize", RoleMiddleware("student"), app.TeamHandler.FinalizeTeam)
+				teams.POST("/:id/assign-advisor", RoleMiddleware("student"), app.TeamHandler.AssignAdvisor)
+				teams.POST("/:id/advisor-response", RoleMiddleware("advisor"), app.TeamHandler.AdvisorResponse)
 			}
 
 			// Proposals (Students & Teachers)
 			proposals := protected.Group("/proposals")
 			{
-				// 1. Create a new Draft (Student Only)
-				// POST /api/v1/proposals
+				// Create a new Draft (Student Only)
 				proposals.POST("", RoleMiddleware("student"), app.ProposalHandler.CreateProposal)
 
-				// 2. Update Draft OR Create Revision (Student Only)
-				// PUT /api/v1/proposals/:id
+				// Update Draft OR Create Revision (Student Only)
 				proposals.PUT("/:id", RoleMiddleware("student"), app.ProposalHandler.UpdateProposal)
 
-				// 3. Submit Proposal (Student Only - Leader)
-				// POST /api/v1/proposals/:id/submit
+				// Submit Proposal (Student Only - Leader)
 				proposals.POST("/:id/submit", RoleMiddleware("student"), app.ProposalHandler.SubmitProposal)
 
-				// 4. View Proposals (Students see theirs, Teachers see dept proposals)
-				// GET /api/v1/proposals
+				// View Proposals
 				proposals.GET("", app.ProposalHandler.GetProposals)
 
-				// 5. View Specific Proposal Details
-				// GET /api/v1/proposals/:id
+				// View Specific Proposal Details
 				proposals.GET("/:id", app.ProposalHandler.GetProposal)
 
-				// 6. View Version History
-				// GET /api/v1/proposals/:id/versions
+				// View Version History
 				proposals.GET("/:id/versions", app.ProposalHandler.GetVersions)
 
-				// 7. Delete Draft (Student Only)
-				// DELETE /api/v1/proposals/:id
+				// Create New Version (Student Only)
+				proposals.POST("/:id/versions", RoleMiddleware("student"), app.ProposalHandler.CreateVersion)
+
+				// Delete Draft (Student Only)
 				proposals.DELETE("/:id", RoleMiddleware("student"), app.ProposalHandler.DeleteProposal)
+
+				// Start Review (Advisor Only)
+				proposals.POST("/:id/start-review", RoleMiddleware("advisor"), app.ProposalHandler.StartReview)
 			}
 			// Feedback (Teachers)
 			feedback := protected.Group("/feedback")
@@ -169,6 +188,7 @@ func NewRouter(app *App) *gin.Engine {
 				projects.GET("/:id", app.ProjectHandler.GetProject)
 				projects.PUT("/:id", app.ProjectHandler.UpdateProject)
 				projects.POST("/:id/publish", app.ProjectHandler.PublishProject)
+				projects.POST("/:id/share", app.ProjectHandler.IncrementShareCount)
 				// Project Reviews
 				projects.POST("/:id/reviews", app.ReviewHandler.CreateReview)
 				projects.GET("/:id/reviews", app.ReviewHandler.GetProjectReviews)
