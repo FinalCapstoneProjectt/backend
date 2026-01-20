@@ -13,6 +13,13 @@ type Response struct {
 	Errors  interface{} `json:"errors,omitempty"`
 }
 
+// ErrorResponse represents an error response for Swagger documentation
+type ErrorResponse struct {
+	Success bool        `json:"success" example:"false"`
+	Message string      `json:"message" example:"Error message"`
+	Errors  interface{} `json:"errors,omitempty"`
+}
+
 func JSON(c *gin.Context, status int, message string, data interface{}) {
 	c.JSON(status, Response{
 		Success: status >= 200 && status < 300,

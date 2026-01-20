@@ -1,8 +1,18 @@
 package documentation
 
-import "gorm.io/gorm"
+import (
+	"backend/internal/domain"
+
+	"gorm.io/gorm"
+)
 
 type Repository interface {
+	Create(doc *domain.ProjectDocumentation) error
+	GetByID(id uint) (*domain.ProjectDocumentation, error)
+	GetByProjectID(projectID uint) ([]domain.ProjectDocumentation, error)
+	Update(doc *domain.ProjectDocumentation) error
+	ApproveDocument(id uint, reviewerID uint, comment string) error
+	RejectDocument(id uint, reviewerID uint, comment string) error
 }
 
 type repository struct {
@@ -13,3 +23,47 @@ func NewRepository(db *gorm.DB) Repository {
 	return &repository{db: db}
 }
 
+func (r *repository) Create(doc *domain.ProjectDocumentation) error {
+	return r.db.Create(doc).Error
+}
+
+func (r *repository) GetByID(id uint) (*domain.ProjectDocumentation, error) {
+	var doc domain.ProjectDocumentation
+	err := r.db.First(&doc, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &doc, nil
+}
+
+func (r *repository) GetByProjectID(projectID uint) ([]domain.ProjectDocumentation, error) {
+	var docs []domain.ProjectDocumentation
+	err := r.db.Where("project_id = ?", projectID).Order("submitted_at DESC").Find(&docs).Error
+	return docs, err
+}
+
+func (r *repository) Update(doc *domain.ProjectDocumentation) error {
+	return r.db.Save(doc).Error
+}
+
+func (r *repository) ApproveDocument(id uint, reviewerID uint, comment string) error {
+	return r.db.Model(&domain.ProjectDocumentation{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":         "approved",
+			"review_comment": comment,
+			"reviewed_by":    reviewerID,
+			"reviewed_at":    gorm.Expr("NOW()"),
+		}).Error
+}
+
+func (r *repository) RejectDocument(id uint, reviewerID uint, comment string) error {
+	return r.db.Model(&domain.ProjectDocumentation{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":         "rejected",
+			"review_comment": comment,
+			"reviewed_by":    reviewerID,
+			"reviewed_at":    gorm.Expr("NOW()"),
+		}).Error
+}
