@@ -1,0 +1,2238 @@
+basePath: /api/v1
+definitions:
+  auth.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  auth.LoginResponse:
+    properties:
+      expires_at:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/domain.User'
+    type: object
+  auth.RegisterRequest:
+    properties:
+      department_id:
+        type: integer
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      role:
+        type: string
+      university_id:
+        type: integer
+    required:
+    - email
+    - name
+    - password
+    - role
+    - university_id
+    type: object
+  departments.CreateDepartmentRequest:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+      university_id:
+        type: integer
+    required:
+    - name
+    - university_id
+    type: object
+  departments.UpdateDepartmentRequest:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+    type: object
+  domain.Department:
+    properties:
+      code:
+        description: e.g., CSE, SE
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      university:
+        $ref: '#/definitions/domain.University'
+      university_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  domain.Feedback:
+    properties:
+      comment:
+        type: string
+      created_at:
+        type: string
+      decision:
+        $ref: '#/definitions/domain.FeedbackDecision'
+      id:
+        type: integer
+      is_structured:
+        type: boolean
+      proposal:
+        $ref: '#/definitions/domain.Proposal'
+      proposal_id:
+        type: integer
+      proposal_version_id:
+        type: integer
+      reviewer:
+        $ref: '#/definitions/domain.User'
+      reviewer_id:
+        type: integer
+      version:
+        $ref: '#/definitions/domain.ProposalVersion'
+    type: object
+  domain.FeedbackDecision:
+    enum:
+    - approve
+    - revise
+    - reject
+    type: string
+    x-enum-varnames:
+    - FeedbackDecisionApprove
+    - FeedbackDecisionRevise
+    - FeedbackDecisionReject
+  domain.Project:
+    properties:
+      approved_by:
+        type: integer
+      created_at:
+        type: string
+      department_id:
+        type: integer
+      id:
+        type: integer
+      proposal:
+        $ref: '#/definitions/domain.Proposal'
+      proposal_id:
+        type: integer
+      share_count:
+        type: integer
+      summary:
+        type: string
+      team:
+        $ref: '#/definitions/domain.Team'
+      team_id:
+        type: integer
+      visibility:
+        type: string
+    type: object
+  domain.Proposal:
+    properties:
+      approved_at:
+        type: string
+      approved_by:
+        type: integer
+      approver:
+        $ref: '#/definitions/domain.User'
+      created_at:
+        type: string
+      current_version_id:
+        type: integer
+      currentVersion:
+        $ref: '#/definitions/domain.ProposalVersion'
+      feedback:
+        items:
+          $ref: '#/definitions/domain.Feedback'
+        type: array
+      id:
+        type: integer
+      rejected_at:
+        type: string
+      rejected_by:
+        type: integer
+      rejecter:
+        $ref: '#/definitions/domain.User'
+      rejection_reason:
+        type: string
+      status:
+        $ref: '#/definitions/enums.ProposalStatus'
+      submission_count:
+        type: integer
+      submitted_at:
+        type: string
+      team:
+        $ref: '#/definitions/domain.Team'
+      team_id:
+        type: integer
+      updated_at:
+        type: string
+      versions:
+        items:
+          $ref: '#/definitions/domain.ProposalVersion'
+        type: array
+    type: object
+  domain.ProposalVersion:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      creator:
+        $ref: '#/definitions/domain.User'
+      expected_outcomes:
+        type: string
+      file_hash:
+        type: string
+      file_size_bytes:
+        type: integer
+      file_url:
+        type: string
+      id:
+        type: integer
+      is_approved_version:
+        type: boolean
+      methodology:
+        type: string
+      objectives:
+        type: string
+      proposal:
+        $ref: '#/definitions/domain.Proposal'
+      proposal_id:
+        type: integer
+      title:
+        type: string
+      version_number:
+        type: integer
+    type: object
+  domain.Team:
+    properties:
+      advisor:
+        $ref: '#/definitions/domain.User'
+      advisor_id:
+        type: integer
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      creator:
+        $ref: '#/definitions/domain.User'
+      department:
+        $ref: '#/definitions/domain.Department'
+      department_id:
+        type: integer
+      id:
+        type: integer
+      members:
+        items:
+          $ref: '#/definitions/domain.User'
+        type: array
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/enums.TeamStatus'
+    type: object
+  domain.University:
+    properties:
+      academic_year:
+        type: string
+      ai_checker_enabled:
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      project_period:
+        type: string
+      updated_at:
+        type: string
+      visibility_rule:
+        description: private, public, restricted
+        type: string
+    type: object
+  domain.User:
+    properties:
+      created_at:
+        type: string
+      department:
+        $ref: '#/definitions/domain.Department'
+      department_id:
+        type: integer
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      last_login_at:
+        type: string
+      name:
+        type: string
+      profile_photo:
+        type: string
+      role:
+        $ref: '#/definitions/enums.Role'
+      student_id:
+        type: string
+      university:
+        $ref: '#/definitions/domain.University'
+      university_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  enums.ProposalStatus:
+    enum:
+    - draft
+    - submitted
+    - under_review
+    - revision_required
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - ProposalStatusDraft
+    - ProposalStatusSubmitted
+    - ProposalStatusUnderReview
+    - ProposalStatusRevisionRequired
+    - ProposalStatusApproved
+    - ProposalStatusRejected
+  enums.Role:
+    enum:
+    - student
+    - teacher
+    - admin
+    - public
+    type: string
+    x-enum-varnames:
+    - RoleStudent
+    - RoleTeacher
+    - RoleAdmin
+    - RolePublic
+  enums.TeamStatus:
+    enum:
+    - pending_advisor_approval
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - TeamStatusPendingAdvisorApproval
+    - TeamStatusApproved
+    - TeamStatusRejected
+  feedback.CreateFeedbackRequest:
+    properties:
+      comment:
+        minLength: 20
+        type: string
+      decision:
+        $ref: '#/definitions/domain.FeedbackDecision'
+      proposal_id:
+        type: integer
+      proposal_version_id:
+        type: integer
+    required:
+    - comment
+    - decision
+    - proposal_id
+    - proposal_version_id
+    type: object
+  projects.CreateProjectRequest:
+    properties:
+      keywords:
+        type: string
+      proposal_id:
+        type: integer
+      summary:
+        minLength: 50
+        type: string
+    required:
+    - keywords
+    - proposal_id
+    - summary
+    type: object
+  projects.UpdateProjectRequest:
+    properties:
+      keywords:
+        type: string
+      summary:
+        minLength: 50
+        type: string
+    required:
+    - keywords
+    - summary
+    type: object
+  proposals.CreateProposalRequest:
+    properties:
+      team_id:
+        type: integer
+    required:
+    - team_id
+    type: object
+  proposals.CreateVersionRequest:
+    properties:
+      expected_outcomes:
+        type: string
+      file_hash:
+        type: string
+      file_size_bytes:
+        type: integer
+      file_url:
+        type: string
+      methodology:
+        type: string
+      objectives:
+        type: string
+      title:
+        type: string
+    required:
+    - expected_outcomes
+    - file_hash
+    - file_size_bytes
+    - file_url
+    - methodology
+    - objectives
+    - title
+    type: object
+  response.ErrorResponse:
+    properties:
+      errors: {}
+      message:
+        example: Error message
+        type: string
+      success:
+        example: false
+        type: boolean
+    type: object
+  response.Response:
+    properties:
+      data: {}
+      errors: {}
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  teams.CreateTeamRequest:
+    properties:
+      department_id:
+        type: integer
+      name:
+        type: string
+    required:
+    - department_id
+    - name
+    type: object
+  teams.InviteMemberRequest:
+    properties:
+      user_id:
+        type: integer
+    required:
+    - user_id
+    type: object
+  teams.RespondInvitationRequest:
+    properties:
+      accept:
+        type: boolean
+    required:
+    - accept
+    type: object
+  universities.CreateUniversityRequest:
+    properties:
+      academic_year:
+        type: string
+      ai_checker_enabled:
+        type: boolean
+      name:
+        type: string
+      project_period:
+        type: string
+      visibility_rule:
+        type: string
+    required:
+    - name
+    type: object
+  universities.UpdateUniversityRequest:
+    properties:
+      academic_year:
+        type: string
+      ai_checker_enabled:
+        type: boolean
+      name:
+        type: string
+      project_period:
+        type: string
+      visibility_rule:
+        type: string
+    type: object
+  users.AssignDepartmentRequest:
+    properties:
+      department_id:
+        type: integer
+    required:
+    - department_id
+    type: object
+  users.CreateStudentRequest:
+    properties:
+      department_id:
+        type: integer
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      student_id:
+        type: string
+      university_id:
+        type: integer
+    required:
+    - department_id
+    - email
+    - name
+    - password
+    - student_id
+    - university_id
+    type: object
+  users.CreateTeacherRequest:
+    properties:
+      department_id:
+        type: integer
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      university_id:
+        type: integer
+    required:
+    - department_id
+    - email
+    - name
+    - password
+    - university_id
+    type: object
+  users.UpdateUserStatusRequest:
+    properties:
+      is_active:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: REST API for managing universities, departments, teams, proposals,
+    and reviews.
+  title: University Project Hub API
+  version: "1.0"
+paths:
+  /admin/users:
+    get:
+      description: Admin retrieves list of users with optional filters
+      parameters:
+      - description: Filter by role (admin, teacher, student)
+        in: query
+        name: role
+        type: string
+      - description: Filter by department ID
+        in: query
+        name: department_id
+        type: integer
+      - description: Filter by university ID
+        in: query
+        name: university_id
+        type: integer
+      - description: Filter by active status
+        in: query
+        name: is_active
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.User'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all users
+      tags:
+      - Admin - Users
+  /admin/users/{id}:
+    delete:
+      description: Admin deletes a user account (use with caution)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - Admin - Users
+    get:
+      description: Admin retrieves user details by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user by ID
+      tags:
+      - Admin - Users
+  /admin/users/{id}/assign-department:
+    post:
+      consumes:
+      - application/json
+      description: Admin assigns a teacher or student to a department
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Department assignment
+        in: body
+        name: assignment
+        required: true
+        schema:
+          $ref: '#/definitions/users.AssignDepartmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Assign user to department
+      tags:
+      - Admin - Users
+  /admin/users/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Admin controls user account activation status
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User status
+        in: body
+        name: status
+        required: true
+        schema:
+          $ref: '#/definitions/users.UpdateUserStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Activate or deactivate user
+      tags:
+      - Admin - Users
+  /admin/users/student:
+    post:
+      consumes:
+      - application/json
+      description: Admin registers or approves a new student account
+      parameters:
+      - description: Student registration details
+        in: body
+        name: student
+        required: true
+        schema:
+          $ref: '#/definitions/users.CreateStudentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Register a new student
+      tags:
+      - Admin - Users
+  /admin/users/teacher:
+    post:
+      consumes:
+      - application/json
+      description: Admin registers or approves a new teacher account
+      parameters:
+      - description: Teacher registration details
+        in: body
+        name: teacher
+        required: true
+        schema:
+          $ref: '#/definitions/users.CreateTeacherRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Register a new teacher
+      tags:
+      - Admin - Users
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Login user
+      tags:
+      - Auth
+  /auth/profile:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Refresh JWT token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Registration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - Auth
+  /departments:
+    get:
+      description: Retrieve a list of all departments (optionally filtered by university)
+      parameters:
+      - description: Filter by university ID
+        in: query
+        name: university_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Department'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get all departments
+      tags:
+      - Departments
+    post:
+      consumes:
+      - application/json
+      description: Admin creates a new department under a university
+      parameters:
+      - description: Department details
+        in: body
+        name: department
+        required: true
+        schema:
+          $ref: '#/definitions/departments.CreateDepartmentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Department'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new department
+      tags:
+      - Departments
+  /departments/{id}:
+    delete:
+      description: Admin deletes a department (use with caution)
+      parameters:
+      - description: Department ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete department
+      tags:
+      - Departments
+    get:
+      description: Retrieve a specific department by its ID
+      parameters:
+      - description: Department ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Department'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get department by ID
+      tags:
+      - Departments
+    put:
+      consumes:
+      - application/json
+      description: Admin updates department information
+      parameters:
+      - description: Department ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Department update data
+        in: body
+        name: department
+        required: true
+        schema:
+          $ref: '#/definitions/departments.UpdateDepartmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Department'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update department
+      tags:
+      - Departments
+  /feedback:
+    post:
+      consumes:
+      - application/json
+      description: Teacher reviews proposal and submits feedback (approve, revise,
+        reject)
+      parameters:
+      - description: Feedback details
+        in: body
+        name: feedback
+        required: true
+        schema:
+          $ref: '#/definitions/feedback.CreateFeedbackRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Feedback'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit feedback for a proposal
+      tags:
+      - Feedback
+  /feedback/{id}:
+    get:
+      description: Retrieve specific feedback details
+      parameters:
+      - description: Feedback ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Feedback'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get feedback by ID
+      tags:
+      - Feedback
+  /feedback/pending:
+    get:
+      description: Teacher gets all proposals awaiting their review
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Proposal'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get pending proposals for review
+      tags:
+      - Feedback
+  /projects:
+    get:
+      description: Get all projects with optional filters
+      parameters:
+      - description: Filter by visibility (private, public)
+        in: query
+        name: visibility
+        type: string
+      - description: Filter by department ID
+        in: query
+        name: department_id
+        type: integer
+      - description: Filter by team ID
+        in: query
+        name: team_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Project'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all projects
+      tags:
+      - Projects
+    post:
+      consumes:
+      - application/json
+      description: Convert an approved proposal into a formal project
+      parameters:
+      - description: Project details
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/projects.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Project'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create project from approved proposal
+      tags:
+      - Projects
+  /projects/{id}:
+    get:
+      description: Retrieve specific project details
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Project'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get project by ID
+      tags:
+      - Projects
+    put:
+      consumes:
+      - application/json
+      description: Update project summary and keywords
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated project details
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/projects.UpdateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Project'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update project details
+      tags:
+      - Projects
+  /projects/{id}/publish:
+    post:
+      description: Make project visible to public users
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Publish project to public archive
+      tags:
+      - Projects
+  /proposals:
+    get:
+      description: Get all proposals (filtered by status, department)
+      parameters:
+      - description: Filter by status (draft, submitted, under_review, etc.)
+        in: query
+        name: status
+        type: string
+      - description: Filter by department ID
+        in: query
+        name: department_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Proposal'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List proposals
+      tags:
+      - Proposals
+    post:
+      consumes:
+      - application/json
+      description: Student creates a new proposal in draft state
+      parameters:
+      - description: Proposal details
+        in: body
+        name: proposal
+        required: true
+        schema:
+          $ref: '#/definitions/proposals.CreateProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Proposal'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new proposal (draft)
+      tags:
+      - Proposals
+  /proposals/{id}:
+    delete:
+      description: Delete a proposal (only allowed for drafts)
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a draft proposal
+      tags:
+      - Proposals
+    get:
+      description: Retrieve proposal details with versions and feedback
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Proposal'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get proposal by ID
+      tags:
+      - Proposals
+  /proposals/{id}/feedback:
+    get:
+      description: Retrieve all feedback history for a specific proposal
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Feedback'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all feedback for a proposal
+      tags:
+      - Feedback
+  /proposals/{id}/submit:
+    post:
+      description: Team leader submits proposal, locks it, and notifies teacher
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit proposal for review
+      tags:
+      - Proposals
+  /proposals/{id}/versions:
+    get:
+      description: Retrieve version history for a proposal
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.ProposalVersion'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all versions of a proposal
+      tags:
+      - Proposals
+    post:
+      consumes:
+      - application/json
+      description: Add a new version to a draft or revision-required proposal
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Version details
+        in: body
+        name: version
+        required: true
+        schema:
+          $ref: '#/definitions/proposals.CreateVersionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ProposalVersion'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new proposal version
+      tags:
+      - Proposals
+  /teams:
+    get:
+      description: Get all teams where the user is a member or creator
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Team'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user's teams
+      tags:
+      - Teams
+    post:
+      consumes:
+      - application/json
+      description: Student creates a new team and becomes the leader
+      parameters:
+      - description: Team details
+        in: body
+        name: team
+        required: true
+        schema:
+          $ref: '#/definitions/teams.CreateTeamRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Team'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new team
+      tags:
+      - Teams
+  /teams/{id}:
+    get:
+      description: Retrieve team details with members
+      parameters:
+      - description: Team ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Team'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get team by ID
+      tags:
+      - Teams
+  /teams/{id}/invitation/respond:
+    post:
+      consumes:
+      - application/json
+      description: Student accepts or rejects a team invitation
+      parameters:
+      - description: Team ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Accept or reject
+        in: body
+        name: response
+        required: true
+        schema:
+          $ref: '#/definitions/teams.RespondInvitationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Respond to team invitation
+      tags:
+      - Teams
+  /teams/{id}/invite:
+    post:
+      consumes:
+      - application/json
+      description: Team leader invites a student to join the team
+      parameters:
+      - description: Team ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User to invite
+        in: body
+        name: invitation
+        required: true
+        schema:
+          $ref: '#/definitions/teams.InviteMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Invite a member to team
+      tags:
+      - Teams
+  /teams/{id}/members:
+    get:
+      description: Retrieve all members of a team
+      parameters:
+      - description: Team ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.User'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get team members
+      tags:
+      - Teams
+  /teams/{id}/members/{memberId}:
+    delete:
+      description: Team leader removes a member from the team
+      parameters:
+      - description: Team ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Member User ID
+        in: path
+        name: memberId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove a member from team
+      tags:
+      - Teams
+  /universities:
+    get:
+      description: Retrieve a list of all universities
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.University'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get all universities
+      tags:
+      - Universities
+    post:
+      consumes:
+      - application/json
+      description: Admin creates a new university with configuration settings
+      parameters:
+      - description: University details
+        in: body
+        name: university
+        required: true
+        schema:
+          $ref: '#/definitions/universities.CreateUniversityRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.University'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new university
+      tags:
+      - Universities
+  /universities/{id}:
+    delete:
+      description: Admin deletes a university (use with caution)
+      parameters:
+      - description: University ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete university
+      tags:
+      - Universities
+    get:
+      description: Retrieve a specific university by its ID
+      parameters:
+      - description: University ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.University'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get university by ID
+      tags:
+      - Universities
+    put:
+      consumes:
+      - application/json
+      description: Admin updates university configuration (academic year, visibility,
+        AI checker)
+      parameters:
+      - description: University ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: University update data
+        in: body
+        name: university
+        required: true
+        schema:
+          $ref: '#/definitions/universities.UpdateUniversityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.University'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update university settings
+      tags:
+      - Universities
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
