@@ -7,4 +7,3 @@ type Service struct {
 func NewService(r Repository) *Service {
 	return &Service{repo: r}
 }
-

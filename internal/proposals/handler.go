@@ -1,6 +1,13 @@
 package proposals
 
-// import "github.com/gin-gonic/gin"
+import (
+	"backend/internal/auth"
+	"backend/pkg/response"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+)
 
 type Handler struct {
 	service *Service
@@ -8,4 +15,232 @@ type Handler struct {
 
 func NewHandler(s *Service) *Handler {
 	return &Handler{service: s}
+}
+
+// CreateProposal godoc
+// @Summary Create a new proposal (draft)
+// @Description Student creates a new proposal in draft state
+// @Tags Proposals
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param proposal body CreateProposalRequest true "Proposal details"
+// @Success 201 {object} response.Response{data=domain.Proposal}
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 409 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /proposals [post]
+func (h *Handler) CreateProposal(c *gin.Context) {
+	var req CreateProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	proposal, err := h.service.CreateProposal(req)
+	if err != nil {
+		if err.Error() == "team already has a proposal" {
+			response.Error(c, http.StatusConflict, "Team already has a proposal", err.Error())
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "Failed to create proposal", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusCreated, "Proposal created successfully", proposal)
+}
+
+// GetProposals godoc
+// @Summary List proposals
+// @Description Get all proposals (filtered by status, department)
+// @Tags Proposals
+// @Produce json
+// @Security BearerAuth
+// @Param status query string false "Filter by status (draft, submitted, under_review, etc.)"
+// @Param department_id query int false "Filter by department ID"
+// @Success 200 {object} response.Response{data=[]domain.Proposal}
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /proposals [get]
+func (h *Handler) GetProposals(c *gin.Context) {
+	status := c.Query("status")
+	departmentIDStr := c.Query("department_id")
+
+	var departmentID uint
+	if departmentIDStr != "" {
+		id, err := strconv.ParseUint(departmentIDStr, 10, 32)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "Invalid department ID", err.Error())
+			return
+		}
+		departmentID = uint(id)
+	}
+
+	proposals, err := h.service.GetProposals(status, departmentID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to fetch proposals", err.Error())
+		return
+	}
+
+	response.Success(c, proposals)
+}
+
+// GetProposal godoc
+// @Summary Get proposal by ID
+// @Description Retrieve proposal details with versions and feedback
+// @Tags Proposals
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Success 200 {object} response.Response{data=domain.Proposal}
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 404 {object} response.ErrorResponse
+// @Router /proposals/{id} [get]
+func (h *Handler) GetProposal(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
+		return
+	}
+
+	proposal, err := h.service.GetProposal(uint(id))
+	if err != nil {
+		response.Error(c, http.StatusNotFound, "Proposal not found", err.Error())
+		return
+	}
+
+	response.Success(c, proposal)
+}
+
+// CreateVersion godoc
+// @Summary Create a new proposal version
+// @Description Add a new version to a draft or revision-required proposal
+// @Tags Proposals
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Param version body CreateVersionRequest true "Version details"
+// @Success 201 {object} response.Response{data=domain.ProposalVersion}
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /proposals/{id}/versions [post]
+func (h *Handler) CreateVersion(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
+		return
+	}
+
+	userClaims := claims.(*auth.TokenClaims)
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
+		return
+	}
+
+	var req CreateVersionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	version, err := h.service.CreateVersion(uint(id), req, userClaims.UserID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to create version", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusCreated, "Version created successfully", version)
+}
+
+// GetVersions godoc
+// @Summary Get all versions of a proposal
+// @Description Retrieve version history for a proposal
+// @Tags Proposals
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Success 200 {object} response.Response{data=[]domain.ProposalVersion}
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /proposals/{id}/versions [get]
+func (h *Handler) GetVersions(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
+		return
+	}
+
+	versions, err := h.service.GetVersions(uint(id))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to fetch versions", err.Error())
+		return
+	}
+
+	response.Success(c, versions)
+}
+
+// SubmitProposal godoc
+// @Summary Submit proposal for review
+// @Description Team leader submits proposal, locks it, and notifies teacher
+// @Tags Proposals
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /proposals/{id}/submit [post]
+func (h *Handler) SubmitProposal(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
+		return
+	}
+
+	err = h.service.SubmitProposal(uint(id))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to submit proposal", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Proposal submitted successfully", nil)
+}
+
+// DeleteProposal godoc
+// @Summary Delete a draft proposal
+// @Description Delete a proposal (only allowed for drafts)
+// @Tags Proposals
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /proposals/{id} [delete]
+func (h *Handler) DeleteProposal(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
+		return
+	}
+
+	err = h.service.DeleteProposal(uint(id))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to delete proposal", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Proposal deleted successfully", nil)
 }
