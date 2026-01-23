@@ -2,188 +2,160 @@ package ai_checker
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 )
 
-// Client handles communication with the AI service
 type Client struct {
 	baseURL    string
-	httpClient *http.Client
 	apiKey     string
+	httpClient *http.Client
 }
 
-// NewClient creates a new AI checker client
 func NewClient(baseURL, apiKey string) *Client {
+	baseURL = strings.TrimRight(baseURL, "/")
 	return &Client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second, // AI analysis can take time
+			Timeout: 30 * time.Second,
 		},
 	}
 }
 
-// ProposalCheckRequest is the request body for proposal analysis
-type ProposalCheckRequest struct {
-	Title      string `json:"title"`
-	Objectives string `json:"objectives"`
+func (c *Client) Health(ctx context.Context) error {
+	if c.baseURL == "" {
+		return errors.New("AI service URL is not configured")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/health", nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("AI service health check failed: %s", strings.TrimSpace(string(body)))
+	}
+
+	return nil
 }
 
-// DetailedSummary contains the detailed analysis summary
-type DetailedSummary struct {
-	ProblemStatement string `json:"problem_statement"`
-	ProposedSolution string `json:"proposed_solution"`
-}
-
-// RiskAssessment contains risk analysis data
-type RiskAssessment struct {
-	FeasibilityScore float64  `json:"feasibility_score"`
-	TechnicalRisks   []string `json:"technical_risks"`
-	Recommendations  []string `json:"recommendations"`
-}
-
-// MethodologyAnalysis contains methodology analysis
-type MethodologyAnalysis struct {
-	Strengths   []string `json:"strengths"`
-	Weaknesses  []string `json:"weaknesses"`
-	Suggestions []string `json:"suggestions"`
-}
-
-// SimilarityWarning represents a similar project warning
-type SimilarityWarning struct {
-	ProjectID       int      `json:"project_id"`
-	Title           string   `json:"title"`
-	Summary         string   `json:"summary"`
-	SimilarityScore float64  `json:"similarity_score"`
-	CommonThemes    []string `json:"common_themes"`
-	Explanation     string   `json:"explanation"`
-	Suggestion      string   `json:"suggestion"`
-}
-
-// ProposalCheckResponse is the response from proposal analysis
-type ProposalCheckResponse struct {
-	Summary            string              `json:"summary"`
-	DetailedSummary    DetailedSummary     `json:"detailed_summary"`
-	Keywords           []string            `json:"keywords"`
-	StructureHints     []string            `json:"structure_hints"`
-	SimilarityWarnings []SimilarityWarning `json:"similarity_warnings"`
-	RiskAssessment     RiskAssessment      `json:"risk_assessment"`
-	MethodologyAnalysis MethodologyAnalysis `json:"methodology_analysis"`
-	ConfidenceScores   map[string]float64  `json:"confidence_scores"`
-}
-
-// ProjectSyncItem represents a project to sync with the AI service
-type ProjectSyncItem struct {
-	ID      uint   `json:"id"`
-	Title   string `json:"title"`
-	Summary string `json:"summary"`
-}
-
-// SyncResponse is the response from project sync
-type SyncResponse struct {
-	Status          string `json:"status"`
-	ProjectsIndexed int    `json:"projects_indexed"`
-	Message         string `json:"message"`
-}
-
-// CheckProposal analyzes a proposal using the AI service
-func (c *Client) CheckProposal(title, objectives string) (*ProposalCheckResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/predict/proposal-check", c.baseURL)
-
-	payload := ProposalCheckRequest{
-		Title:      title,
-		Objectives: objectives,
+func (c *Client) CheckProposalText(ctx context.Context, payload ProposalCheckRequest) (map[string]interface{}, error) {
+	if c.baseURL == "" {
+		return nil, errors.New("AI service URL is not configured")
 	}
 
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/predict/proposal-check", bytes.NewBuffer(jsonBody))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
+	applyHeaders(req, "application/json", c.apiKey)
 
-	req.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		req.Header.Set("X-API-Key", c.apiKey)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("AI service request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var result ProposalCheckResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return &result, nil
+	return c.doJSON(req)
 }
 
-// SyncProjects syncs approved projects to the AI service for similarity detection
-func (c *Client) SyncProjects(projects []ProjectSyncItem) (*SyncResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/internal/sync-projects", c.baseURL)
+func (c *Client) CheckProposalFile(ctx context.Context, filename string, fileContent []byte) (map[string]interface{}, error) {
+	if c.baseURL == "" {
+		return nil, errors.New("AI service URL is not configured")
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := part.Write(fileContent); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/predict/proposal-check-file", body)
+	if err != nil {
+		return nil, err
+	}
+	applyHeaders(req, writer.FormDataContentType(), c.apiKey)
+
+	return c.doJSON(req)
+}
+
+func (c *Client) SyncProjects(ctx context.Context, projects []SyncProject) error {
+	if c.baseURL == "" {
+		return errors.New("AI service URL is not configured")
+	}
 
 	jsonBody, err := json.Marshal(projects)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/internal/sync-projects", bytes.NewBuffer(jsonBody))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return err
 	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		req.Header.Set("X-API-Key", c.apiKey)
-	}
+	applyHeaders(req, "application/json", c.apiKey)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("AI service sync request failed: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service sync returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var result SyncResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode sync response: %w", err)
-	}
-
-	return &result, nil
-}
-
-// HealthCheck checks if the AI service is available
-func (c *Client) HealthCheck() error {
-	url := fmt.Sprintf("%s/health", c.baseURL)
-
-	resp, err := c.httpClient.Get(url)
-	if err != nil {
-		return fmt.Errorf("AI service health check failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("AI service unhealthy, status: %d", resp.StatusCode)
+		return fmt.Errorf("AI service sync failed: %s", strings.TrimSpace(string(body)))
 	}
 
 	return nil
+}
+
+func (c *Client) doJSON(req *http.Request) (map[string]interface{}, error) {
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("AI service error: %s", strings.TrimSpace(string(body)))
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func applyHeaders(req *http.Request, contentType, apiKey string) {
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
 }
