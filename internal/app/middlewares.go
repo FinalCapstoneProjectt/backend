@@ -4,6 +4,7 @@ import (
 	"backend/config"
 	"backend/internal/auth"
 	"backend/pkg/audit"
+	"backend/pkg/enums"
 	"backend/pkg/response"
 	"net/http"
 	"strings"
@@ -71,7 +72,10 @@ func AuthMiddleware(cfg config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Set user context
+		// Set claims in context (used by handlers)
+		c.Set("claims", claims)
+
+		// Set individual user context fields for convenience
 		c.Set("user_id", claims.UserID)
 		c.Set("user_email", claims.Email)
 		c.Set("user_role", claims.Role)
@@ -82,7 +86,7 @@ func AuthMiddleware(cfg config.Config) gin.HandlerFunc {
 }
 
 // RoleMiddleware checks if user has required role
-func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
+func RoleMiddleware(allowedRoles ...enums.Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userRole, exists := c.Get("user_role")
 		if !exists {
@@ -91,7 +95,19 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 			return
 		}
 
-		role := userRole.(string)
+		// `user_role` is set from JWT claims as enums.Role. Keep it type-safe.
+		var role enums.Role
+		switch v := userRole.(type) {
+		case enums.Role:
+			role = v
+		case string:
+			// graceful fallback if something else set a raw string
+			role = enums.Role(v)
+		default:
+			response.Error(c, http.StatusUnauthorized, "Invalid user role type", nil)
+			c.Abort()
+			return
+		}
 
 		// Check if user role is in allowed roles
 		allowed := false
@@ -114,7 +130,12 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 
 // RBACMiddleware is an alias for RoleMiddleware for backward compatibility
 func RBACMiddleware(allowedRoles []string) gin.HandlerFunc {
-	return RoleMiddleware(allowedRoles...)
+	// Convert []string to []enums.Role for compatibility
+	roles := make([]enums.Role, 0, len(allowedRoles))
+	for _, r := range allowedRoles {
+		roles = append(roles, enums.Role(r))
+	}
+	return RoleMiddleware(roles...)
 }
 
 // AuditMiddleware logs all requests for audit trail
@@ -145,7 +166,12 @@ func AuditMiddleware(auditLogger *audit.Logger) gin.HandlerFunc {
 
 			role := ""
 			if userRole != nil {
-				role = userRole.(string)
+				switch v := userRole.(type) {
+				case enums.Role:
+					role = string(v)
+				case string:
+					role = v
+				}
 			}
 
 			email := ""

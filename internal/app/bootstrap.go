@@ -8,6 +8,7 @@ import (
 	//"backend/internal/documentation"
 	"backend/internal/domain"
 	"backend/internal/feedback"
+	"backend/internal/notifications"
 	"backend/internal/projects"
 	"backend/internal/proposals"
 	"backend/internal/teams"
@@ -21,18 +22,19 @@ import (
 )
 
 type App struct {
-	Config            config.Config
-	DB                *gorm.DB
-	AuditLogger       *audit.Logger
-	AuthService       auth.Service
-	AuthHandler       *auth.Handler
-	UniversityHandler *universities.Handler
-	DepartmentHandler *departments.Handler
-	UserHandler       *users.Handler
-	TeamHandler       *teams.Handler
-	ProposalHandler   *proposals.Handler
-	FeedbackHandler   *feedback.Handler
-	ProjectHandler    *projects.Handler
+	Config               config.Config
+	DB                   *gorm.DB
+	AuditLogger          *audit.Logger
+	AuthService          auth.Service
+	AuthHandler          *auth.Handler
+	UniversityHandler    *universities.Handler
+	DepartmentHandler    *departments.Handler
+	UserHandler          *users.Handler
+	TeamHandler          *teams.Handler
+	ProposalHandler      *proposals.Handler
+	FeedbackHandler      *feedback.Handler
+	ProjectHandler       *projects.Handler
+	NotificationHandler  *notifications.Handler
 	//DocumentationHandler *documentation.Handler
 }
 
@@ -125,25 +127,32 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	projectHandler := projects.NewHandler(projectService)
 	log.Println("Project service initialized")
 
-	// 12. Initialize Documentation Service
+	// 12. Initialize Notification Service
+	notificationRepo := notifications.NewRepository(db)
+	notificationService := notifications.NewService(notificationRepo)
+	notificationHandler := notifications.NewHandler(notificationService)
+	log.Println("Notification service initialized")
+
+	// 13. Initialize Documentation Service
 	//documentationRepo := documentation.NewRepository(db)
 	//documentationService := documentation.NewService(documentationRepo, projectRepo)
 	//documentationHandler := documentation.NewHandler(documentationService)
 	//log.Println("Documentation service initialized")
 
 	return &App{
-		Config:            cfg,
-		DB:                db,
-		AuditLogger:       auditLogger,
-		AuthService:       authService,
-		AuthHandler:       authHandler,
-		UniversityHandler: universityHandler,
-		DepartmentHandler: departmentHandler,
-		UserHandler:       userHandler,
-		TeamHandler:       teamHandler,
-		ProposalHandler:   proposalHandler,
-		FeedbackHandler:   feedbackHandler,
-		ProjectHandler:    projectHandler,
+		Config:               cfg,
+		DB:                   db,
+		AuditLogger:          auditLogger,
+		AuthService:          authService,
+		AuthHandler:          authHandler,
+		UniversityHandler:    universityHandler,
+		DepartmentHandler:    departmentHandler,
+		UserHandler:          userHandler,
+		TeamHandler:          teamHandler,
+		ProposalHandler:      proposalHandler,
+		FeedbackHandler:      feedbackHandler,
+		ProjectHandler:       projectHandler,
+		NotificationHandler:  notificationHandler,
 		//DocumentationHandler: documentationHandler,
 	}, nil
 }

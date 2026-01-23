@@ -283,3 +283,61 @@ func (h *Handler) RemoveMember(c *gin.Context) {
 
 	response.JSON(c, http.StatusOK, "Member removed successfully", nil)
 }
+
+// ApproveTeam godoc
+// @Summary Approve or reject a team
+// @Description Advisor approves or rejects a team assigned to them
+// @Tags Teams
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Team ID"
+// @Param body body ApproveTeamRequest true "Approve or reject"
+// @Success 200 {object} response.Response{data=domain.Team}
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Failure 404 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /teams/{id}/approval [post]
+func (h *Handler) ApproveTeam(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
+		return
+	}
+
+	userClaims := claims.(*auth.TokenClaims)
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid team ID", err.Error())
+		return
+	}
+
+	var req ApproveTeamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	team, err := h.service.ApproveTeam(uint(id), userClaims.UserID, req.Approve)
+	if err != nil {
+		if err.Error() == "only assigned advisor can approve this team" {
+			response.Error(c, http.StatusForbidden, "Forbidden", err.Error())
+			return
+		}
+		if err.Error() == "team is not pending advisor approval" {
+			response.Error(c, http.StatusBadRequest, "Invalid team state", err.Error())
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "Failed to update team status", err.Error())
+		return
+	}
+
+	message := "Team rejected"
+	if req.Approve {
+		message = "Team approved"
+	}
+	response.JSON(c, http.StatusOK, message, team)
+}

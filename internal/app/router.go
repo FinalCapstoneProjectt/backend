@@ -1,6 +1,7 @@
 package app
 
 import (
+	"backend/pkg/enums"
 	"backend/pkg/response"
 	"net/http"
 
@@ -12,6 +13,9 @@ import (
 
 func NewRouter(app *App) *gin.Engine {
 	r := gin.Default()
+
+	// Serve uploaded files
+	r.Static("/uploads", "./uploads")
 
 	// Global Middlewares
 	r.Use(CORSMiddleware())
@@ -48,34 +52,42 @@ func NewRouter(app *App) *gin.Engine {
 			// Auth Profile
 			protected.GET("/auth/profile", app.AuthHandler.GetProfile)
 
+			// User Search (available to all authenticated users)
+			users := protected.Group("/users")
+			{
+				users.GET("/students/search", app.UserHandler.SearchStudents)
+				users.GET("/teachers", app.UserHandler.GetTeachers)
+			}
+
 			// Teams (Students)
 			teams := protected.Group("/teams")
 			{
-				teams.POST("", RoleMiddleware("student"), app.TeamHandler.CreateTeam)
+				teams.POST("", RoleMiddleware(enums.RoleStudent), app.TeamHandler.CreateTeam)
 				teams.GET("", app.TeamHandler.GetTeams)
 				teams.GET("/:id", app.TeamHandler.GetTeam)
 				teams.GET("/:id/members", app.TeamHandler.GetTeamMembers)
-				teams.POST("/:id/invite", RoleMiddleware("student"), app.TeamHandler.InviteMember)
-				teams.POST("/:id/invitation/respond", RoleMiddleware("student"), app.TeamHandler.RespondToInvitation)
-				teams.DELETE("/:id/members/:memberId", RoleMiddleware("student"), app.TeamHandler.RemoveMember)
+				teams.POST("/:id/invite", RoleMiddleware(enums.RoleStudent), app.TeamHandler.InviteMember)
+				teams.POST("/:id/invitation/respond", RoleMiddleware(enums.RoleStudent), app.TeamHandler.RespondToInvitation)
+				teams.POST("/:id/approval", RoleMiddleware(enums.RoleTeacher), app.TeamHandler.ApproveTeam)
+				teams.DELETE("/:id/members/:memberId", RoleMiddleware(enums.RoleStudent), app.TeamHandler.RemoveMember)
 			}
 
 			// Proposals (Students & Teachers)
 			proposals := protected.Group("/proposals")
 			{
-				proposals.POST("", RoleMiddleware("student"), app.ProposalHandler.CreateProposal)
+				proposals.POST("", RoleMiddleware(enums.RoleStudent), app.ProposalHandler.CreateProposal)
 				proposals.GET("", app.ProposalHandler.GetProposals)
 				proposals.GET("/:id", app.ProposalHandler.GetProposal)
-				proposals.POST("/:id/versions", RoleMiddleware("student"), app.ProposalHandler.CreateVersion)
+				proposals.POST("/:id/versions", RoleMiddleware(enums.RoleStudent), app.ProposalHandler.CreateVersion)
 				proposals.GET("/:id/versions", app.ProposalHandler.GetVersions)
-				proposals.POST("/:id/submit", RoleMiddleware("student"), app.ProposalHandler.SubmitProposal)
-				proposals.DELETE("/:id", RoleMiddleware("student"), app.ProposalHandler.DeleteProposal)
+				proposals.POST("/:id/submit", RoleMiddleware(enums.RoleStudent), app.ProposalHandler.SubmitProposal)
+				proposals.DELETE("/:id", RoleMiddleware(enums.RoleStudent), app.ProposalHandler.DeleteProposal)
 				proposals.GET("/:id/feedback", app.FeedbackHandler.GetProposalFeedback)
 			}
 
 			// Feedback (Teachers)
 			feedback := protected.Group("/feedback")
-			feedback.Use(RoleMiddleware("teacher"))
+			feedback.Use(RoleMiddleware(enums.RoleTeacher))
 			{
 				feedback.GET("/pending", app.FeedbackHandler.GetPendingProposals)
 				feedback.POST("", app.FeedbackHandler.CreateFeedback)
@@ -84,7 +96,7 @@ func NewRouter(app *App) *gin.Engine {
 
 			// Admin User Management
 			admin := protected.Group("/admin")
-			admin.Use(RoleMiddleware("admin"))
+			admin.Use(RoleMiddleware(enums.RoleAdmin))
 			{
 				// User Management
 				admin.POST("/users/teacher", app.UserHandler.CreateTeacher)
@@ -107,6 +119,16 @@ func NewRouter(app *App) *gin.Engine {
 				//projects.GET("/:project_id/documentation", app.DocumentationHandler.GetProjectDocuments)
 			}
 
+			// Notifications
+			notificationsRoutes := protected.Group("/notifications")
+			{
+				notificationsRoutes.GET("", app.NotificationHandler.GetNotifications)
+				notificationsRoutes.GET("/unread-count", app.NotificationHandler.GetUnreadCount)
+				notificationsRoutes.PATCH("/:id/read", app.NotificationHandler.MarkAsRead)
+				notificationsRoutes.PATCH("/read-all", app.NotificationHandler.MarkAllAsRead)
+				notificationsRoutes.DELETE("/:id", app.NotificationHandler.DeleteNotification)
+			}
+
 			// Documentation (Team members upload, teachers review)
 			//documentation := protected.Group("/documentation")
 			//{
@@ -123,7 +145,7 @@ func NewRouter(app *App) *gin.Engine {
 
 			// Universities (Admin only)
 			universities := protected.Group("/universities")
-			universities.Use(RoleMiddleware("admin"))
+			universities.Use(RoleMiddleware(enums.RoleAdmin))
 			{
 				universities.GET("", app.UniversityHandler.GetUniversities)
 				universities.POST("", app.UniversityHandler.CreateUniversity)
@@ -134,7 +156,7 @@ func NewRouter(app *App) *gin.Engine {
 
 			// Departments (Admin/Department Head only)
 			departments := protected.Group("/departments")
-			departments.Use(RoleMiddleware("admin", "department_head"))
+			departments.Use(RoleMiddleware(enums.RoleAdmin, "department_head"))
 			{
 				departments.GET("", app.DepartmentHandler.GetDepartments)
 				departments.POST("", app.DepartmentHandler.CreateDepartment)

@@ -3,6 +3,7 @@ package database
 import (
 	"backend/internal/domain"
 	"backend/pkg/enums"
+	"errors"
 	"log"
 
 	"golang.org/x/crypto/bcrypt"
@@ -16,92 +17,154 @@ func SeedDatabase(db *gorm.DB) error {
 	// Check if university already exists
 	var universityCount int64
 	db.Model(&domain.University{}).Count(&universityCount)
-	if universityCount > 0 {
-		log.Println("Database already seeded, skipping...")
-		return nil
-	}
+	if universityCount == 0 {
+		log.Println("Seeding database with initial data...")
 
-	log.Println("Seeding database with initial data...")
-
-	// 1. Create default university
-	university := &domain.University{
-		ID:               1,
-		Name:             "Adama Science and Technology University",
-		AcademicYear:     "2025/2026",
-		ProjectPeriod:    "Semester 2",
-		VisibilityRule:   "private",
-		AICheckerEnabled: true,
-	}
-	if err := db.Create(university).Error; err != nil {
-		log.Printf("Failed to create university: %v", err)
-		return err
-	}
-	log.Println("✓ Created university: ASTU")
-
-	// 2. Create departments
-	departments := []domain.Department{
-		{Name: "Computer Science", Code: "CS", UniversityID: 1},
-		{Name: "Software Engineering", Code: "SE", UniversityID: 1},
-		{Name: "Information Technology", Code: "IT", UniversityID: 1},
-		{Name: "Electrical Engineering", Code: "EE", UniversityID: 1},
-		{Name: "Mechanical Engineering", Code: "ME", UniversityID: 1},
-	}
-
-	for _, dept := range departments {
-		if err := db.Create(&dept).Error; err != nil {
-			log.Printf("Failed to create department %s: %v", dept.Code, err)
+		// 1. Create default university
+		university := &domain.University{
+			ID:               1,
+			Name:             "Adama Science and Technology University",
+			AcademicYear:     "2025/2026",
+			ProjectPeriod:    "Semester 2",
+			VisibilityRule:   "private",
+			AICheckerEnabled: true,
+		}
+		if err := db.Create(university).Error; err != nil {
+			log.Printf("Failed to create university: %v", err)
 			return err
 		}
-		log.Printf("✓ Created department: %s (%s)", dept.Name, dept.Code)
+		log.Println("✓ Created university: ASTU")
+
+		// 2. Create departments
+		departments := []domain.Department{
+			{Name: "Computer Science", Code: "CS", UniversityID: 1},
+			{Name: "Software Engineering", Code: "SE", UniversityID: 1},
+			{Name: "Information Technology", Code: "IT", UniversityID: 1},
+			{Name: "Electrical Engineering", Code: "EE", UniversityID: 1},
+			{Name: "Mechanical Engineering", Code: "ME", UniversityID: 1},
+		}
+
+		for _, dept := range departments {
+			if err := db.Create(&dept).Error; err != nil {
+				log.Printf("Failed to create department %s: %v", dept.Code, err)
+				return err
+			}
+			log.Printf("✓ Created department: %s (%s)", dept.Name, dept.Code)
+		}
+
+		// continue to create admin/teacher below
+	} else {
+		log.Println("Database already seeded, ensuring admin user exists...")
 	}
 
-	// 3. Create default admin user
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("Admin@123"), bcrypt.DefaultCost)
+	// 3. Ensure default admin user exists (create or update)
+	// Use admin@gmail.com with password 'password123' as requested
+	var uni domain.University
+	if err := db.First(&uni).Error; err != nil {
+		// if no university exists, create one minimal entry
+		uni = domain.University{
+			Name:             "Adama Science and Technology University",
+			AcademicYear:     "2025/2026",
+			ProjectPeriod:    "Semester 2",
+			VisibilityRule:   "private",
+			AICheckerEnabled: true,
+		}
+		if err := db.Create(&uni).Error; err != nil {
+			log.Printf("Failed to ensure university for admin: %v", err)
+			return err
+		}
+	}
+
+	adminEmail := "admin@gmail.com"
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("Failed to hash admin password: %v", err)
 		return err
 	}
 
-	admin := &domain.User{
-		Name:          "System Administrator",
-		Email:         "admin@astu.edu.et",
-		Password:      string(hashedPassword),
-		Role:          enums.RoleAdmin,
-		UniversityID:  university.ID,
-		IsActive:      true,
-		EmailVerified: true,
+	// Ensure we have a valid department to satisfy FK constraint
+	var dept domain.Department
+	if err := db.Where("university_id = ?", uni.ID).First(&dept).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// create a default department
+			d := domain.Department{Name: "Computer Science", Code: "CS", UniversityID: uni.ID}
+			if err := db.Create(&d).Error; err != nil {
+				log.Printf("Failed to create default department: %v", err)
+				return err
+			}
+			dept = d
+		} else {
+			log.Printf("Failed to query departments: %v", err)
+			return err
+		}
 	}
 
-	if err := db.Create(admin).Error; err != nil {
-		log.Printf("Failed to create admin user: %v", err)
-		return err
-	}
-	log.Println("✓ Created admin user: admin@astu.edu.et (password: Admin@123)")
-
-	// 4. Create sample teacher for testing
-	teacherDeptID := uint(1) // CS department
-	hashedTeacherPassword, err := bcrypt.GenerateFromPassword([]byte("Teacher@123"), bcrypt.DefaultCost)
+	var existingAdmin domain.User
+	err = db.Where("email = ?", adminEmail).First(&existingAdmin).Error
 	if err != nil {
-		log.Printf("Failed to hash teacher password: %v", err)
-		return err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			admin := &domain.User{
+				Name:          "System Administrator",
+				Email:         adminEmail,
+				Password:      string(hashedPassword),
+				Role:          enums.RoleAdmin,
+				UniversityID:  uni.ID,
+				DepartmentID:  dept.ID,
+				IsActive:      true,
+				EmailVerified: true,
+			}
+			if err := db.Create(admin).Error; err != nil {
+				log.Printf("Failed to create admin user: %v", err)
+				return err
+			}
+			log.Printf("✓ Created admin user: %s (password: password123)", adminEmail)
+		} else {
+			log.Printf("Failed to query admin user: %v", err)
+			return err
+		}
+	} else {
+		// update existing admin password/flags
+		existingAdmin.Password = string(hashedPassword)
+		existingAdmin.Role = enums.RoleAdmin
+		existingAdmin.IsActive = true
+		existingAdmin.EmailVerified = true
+		existingAdmin.UniversityID = uni.ID
+		existingAdmin.DepartmentID = dept.ID
+		if err := db.Save(&existingAdmin).Error; err != nil {
+			log.Printf("Failed to update admin user: %v", err)
+			return err
+		}
+		log.Printf("✓ Updated admin user: %s (password reset)", adminEmail)
 	}
 
-	teacher := &domain.User{
-		Name:          "Dr. John Doe",
-		Email:         "teacher@astu.edu.et",
-		Password:      string(hashedTeacherPassword),
-		Role:          enums.RoleTeacher,
-		UniversityID:  university.ID,
-		DepartmentID:  teacherDeptID,
-		IsActive:      true,
-		EmailVerified: true,
-	}
+	// 4. Create sample teacher for testing (only if not exists)
+	teacherEmail := "teacher@astu.edu.et"
+	var teacher domain.User
+	if err := db.Where("email = ?", teacherEmail).First(&teacher).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		teacherDeptID := uint(1) // CS department
+		hashedTeacherPassword, err := bcrypt.GenerateFromPassword([]byte("Teacher@123"), bcrypt.DefaultCost)
+		if err != nil {
+			log.Printf("Failed to hash teacher password: %v", err)
+			return err
+		}
 
-	if err := db.Create(teacher).Error; err != nil {
-		log.Printf("Failed to create teacher user: %v", err)
-		return err
+		teacher := &domain.User{
+			Name:          "Dr. John Doe",
+			Email:         teacherEmail,
+			Password:      string(hashedTeacherPassword),
+			Role:          enums.RoleTeacher,
+			UniversityID:  uni.ID,
+			DepartmentID:  teacherDeptID,
+			IsActive:      true,
+			EmailVerified: true,
+		}
+
+		if err := db.Create(teacher).Error; err != nil {
+			log.Printf("Failed to create teacher user: %v", err)
+			return err
+		}
+		log.Println("✓ Created teacher user: teacher@astu.edu.et (password: Teacher@123)")
 	}
-	log.Println("✓ Created teacher user: teacher@astu.edu.et (password: Teacher@123)")
 
 	log.Println("✓ Database seeded successfully!")
 	log.Println("\nTest Credentials:")

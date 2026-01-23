@@ -269,3 +269,71 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 
 	response.JSON(c, http.StatusOK, "User deleted successfully", nil)
 }
+
+// SearchStudents godoc
+// @Summary Search students for team invitation
+// @Description Search students by name or email for inviting to team
+// @Tags Users
+// @Produce json
+// @Security BearerAuth
+// @Param q query string false "Search query (name or email)"
+// @Param department_id query int false "Filter by department"
+// @Success 200 {object} response.Response{data=[]domain.User}
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /users/students/search [get]
+func (h *Handler) SearchStudents(c *gin.Context) {
+	query := c.Query("q")
+	departmentIDStr := c.Query("department_id")
+
+	var departmentID uint
+	if departmentIDStr != "" {
+		id, err := strconv.ParseUint(departmentIDStr, 10, 32)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "Invalid department ID", err.Error())
+			return
+		}
+		departmentID = uint(id)
+	}
+
+	students, err := h.service.SearchStudents(query, departmentID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to search students", err.Error())
+		return
+	}
+
+	response.Success(c, students)
+}
+
+// GetTeachers godoc
+// @Summary Get list of teachers
+// @Description Get available teachers for advisor selection
+// @Tags Users
+// @Produce json
+// @Security BearerAuth
+// @Param department_id query int false "Filter by department"
+// @Success 200 {object} response.Response{data=[]domain.User}
+// @Failure 401 {object} response.ErrorResponse
+// @Failure 500 {object} response.ErrorResponse
+// @Router /users/teachers [get]
+func (h *Handler) GetTeachers(c *gin.Context) {
+	departmentIDStr := c.Query("department_id")
+
+	var departmentID uint
+	if departmentIDStr != "" {
+		id, err := strconv.ParseUint(departmentIDStr, 10, 32)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "Invalid department ID", err.Error())
+			return
+		}
+		departmentID = uint(id)
+	}
+
+	teachers, err := h.service.GetTeachers(departmentID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to fetch teachers", err.Error())
+		return
+	}
+
+	response.Success(c, teachers)
+}

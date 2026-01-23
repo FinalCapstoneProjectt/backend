@@ -15,6 +15,8 @@ type Repository interface {
 	UpdateStatus(id uint, isActive bool) error
 	AssignDepartment(userID uint, departmentID uint) error
 	Delete(id uint) error
+	SearchStudents(query string, departmentID uint) ([]domain.User, error)
+	GetTeachers(departmentID uint) ([]domain.User, error)
 }
 
 type repository struct {
@@ -82,4 +84,33 @@ func (r *repository) AssignDepartment(userID uint, departmentID uint) error {
 
 func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&domain.User{}, id).Error
+}
+
+func (r *repository) SearchStudents(query string, departmentID uint) ([]domain.User, error) {
+	var users []domain.User
+	db := r.db.Preload("University").Preload("Department").Where("role = ?", "student").Where("is_active = ?", true)
+
+	if query != "" {
+		searchQuery := "%" + query + "%"
+		db = db.Where("name ILIKE ? OR email ILIKE ? OR student_id ILIKE ?", searchQuery, searchQuery, searchQuery)
+	}
+
+	if departmentID > 0 {
+		db = db.Where("department_id = ?", departmentID)
+	}
+
+	err := db.Limit(20).Find(&users).Error
+	return users, err
+}
+
+func (r *repository) GetTeachers(departmentID uint) ([]domain.User, error) {
+	var users []domain.User
+	db := r.db.Preload("University").Preload("Department").Where("role = ?", "teacher").Where("is_active = ?", true)
+
+	if departmentID > 0 {
+		db = db.Where("department_id = ?", departmentID)
+	}
+
+	err := db.Find(&users).Error
+	return users, err
 }

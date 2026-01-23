@@ -3,10 +3,17 @@ package proposals
 import (
 	"backend/internal/auth"
 	"backend/pkg/response"
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -15,6 +22,44 @@ type Handler struct {
 
 func NewHandler(s *Service) *Handler {
 	return &Handler{service: s}
+}
+
+func saveUploadedFile(c *gin.Context, formField string) (string, string, int64, error) {
+	fileHeader, err := c.FormFile(formField)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	uploadDir := filepath.Join("uploads", "proposals")
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		return "", "", 0, err
+	}
+
+	filename := fmt.Sprintf("%s_%s", uuid.New().String(), fileHeader.Filename)
+	filePath := filepath.Join(uploadDir, filename)
+
+	src, err := fileHeader.Open()
+	if err != nil {
+		return "", "", 0, err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(filePath)
+	if err != nil {
+		return "", "", 0, err
+	}
+	defer dst.Close()
+
+	hasher := sha256.New()
+	writer := io.MultiWriter(dst, hasher)
+	bytesWritten, err := io.Copy(writer, src)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	fileURL := "/uploads/proposals/" + filename
+	fileHash := fmt.Sprintf("%x", hasher.Sum(nil))
+	return fileURL, fileHash, bytesWritten, nil
 }
 
 // CreateProposal godoc
@@ -32,6 +77,80 @@ func NewHandler(s *Service) *Handler {
 // @Failure 500 {object} response.ErrorResponse
 // @Router /proposals [post]
 func (h *Handler) CreateProposal(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
+		return
+	}
+
+	userClaims := claims.(*auth.TokenClaims)
+
+	if strings.Contains(c.ContentType(), "multipart/form-data") {
+		teamIDStr := c.PostForm("team_id")
+		if teamIDStr == "" {
+			response.Error(c, http.StatusBadRequest, "Invalid request body", "team_id is required")
+			return
+		}
+		teamIDParsed, err := strconv.ParseUint(teamIDStr, 10, 32)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "Invalid team_id", err.Error())
+			return
+		}
+
+		proposal, err := h.service.CreateProposal(CreateProposalRequest{TeamID: uint(teamIDParsed)})
+		if err != nil {
+			if err.Error() == "team already has a proposal" {
+				response.Error(c, http.StatusConflict, "Team already has a proposal", err.Error())
+				return
+			}
+			response.Error(c, http.StatusInternalServerError, "Failed to create proposal", err.Error())
+			return
+		}
+
+		fileURL, fileHash, fileSize, err := saveUploadedFile(c, "file")
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "Invalid file upload", err.Error())
+			return
+		}
+
+		versionReq := CreateVersionRequest{
+			Title:            c.PostForm("title"),
+			Objectives:       c.PostForm("objectives"),
+			Methodology:      c.PostForm("methodology"),
+			ExpectedOutcomes: c.PostForm("expected_outcomes"),
+			FileURL:          fileURL,
+			FileHash:         fileHash,
+			FileSizeBytes:    fileSize,
+			IPAddress:        c.ClientIP(),
+			UserAgent:        c.GetHeader("User-Agent"),
+		}
+		if requestID, ok := c.Get("request_id"); ok {
+			if requestIDStr, ok := requestID.(string); ok {
+				versionReq.SessionID = requestIDStr
+			}
+		}
+
+		if versionReq.Title == "" || versionReq.Objectives == "" || versionReq.Methodology == "" || versionReq.ExpectedOutcomes == "" {
+			response.Error(c, http.StatusBadRequest, "Invalid request body", "title, objectives, methodology, and expected_outcomes are required")
+			return
+		}
+
+		_, err = h.service.CreateVersion(proposal.ID, versionReq, userClaims.UserID)
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, "Failed to create proposal version", err.Error())
+			return
+		}
+
+		updated, err := h.service.GetProposal(proposal.ID)
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, "Failed to load proposal", err.Error())
+			return
+		}
+
+		response.JSON(c, http.StatusCreated, "Proposal created successfully", updated)
+		return
+	}
+
 	var req CreateProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
@@ -145,9 +264,46 @@ func (h *Handler) CreateVersion(c *gin.Context) {
 	}
 
 	var req CreateVersionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
-		return
+	if strings.Contains(c.ContentType(), "multipart/form-data") {
+		fileURL, fileHash, fileSize, err := saveUploadedFile(c, "file")
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "Invalid file upload", err.Error())
+			return
+		}
+
+		req = CreateVersionRequest{
+			Title:            c.PostForm("title"),
+			Objectives:       c.PostForm("objectives"),
+			Methodology:      c.PostForm("methodology"),
+			ExpectedOutcomes: c.PostForm("expected_outcomes"),
+			FileURL:          fileURL,
+			FileHash:         fileHash,
+			FileSizeBytes:    fileSize,
+			IPAddress:        c.ClientIP(),
+			UserAgent:        c.GetHeader("User-Agent"),
+		}
+		if requestID, ok := c.Get("request_id"); ok {
+			if requestIDStr, ok := requestID.(string); ok {
+				req.SessionID = requestIDStr
+			}
+		}
+
+		if req.Title == "" || req.Objectives == "" || req.Methodology == "" || req.ExpectedOutcomes == "" {
+			response.Error(c, http.StatusBadRequest, "Invalid request body", "title, objectives, methodology, and expected_outcomes are required")
+			return
+		}
+	} else {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+			return
+		}
+		req.IPAddress = c.ClientIP()
+		req.UserAgent = c.GetHeader("User-Agent")
+		if requestID, ok := c.Get("request_id"); ok {
+			if requestIDStr, ok := requestID.(string); ok {
+				req.SessionID = requestIDStr
+			}
+		}
 	}
 
 	version, err := h.service.CreateVersion(uint(id), req, userClaims.UserID)

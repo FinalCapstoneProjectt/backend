@@ -165,3 +165,11 @@ func (s *Service) DeleteUser(id uint) error {
 
 	return s.repo.Delete(id)
 }
+
+func (s *Service) SearchStudents(query string, departmentID uint) ([]domain.User, error) {
+	return s.repo.SearchStudents(query, departmentID)
+}
+
+func (s *Service) GetTeachers(departmentID uint) ([]domain.User, error) {
+	return s.repo.GetTeachers(departmentID)
+}

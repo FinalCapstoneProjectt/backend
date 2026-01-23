@@ -44,7 +44,7 @@ func (s *Service) CreateFeedback(req CreateFeedbackRequest, reviewerID uint) (*d
 	}
 
 	// 3. Validate reviewer is the team's advisor
-	if proposal.Team.AdvisorID != reviewerID {
+	if proposal.Team.AdvisorID == nil || *proposal.Team.AdvisorID != reviewerID {
 		return nil, errors.New("only the assigned advisor can review this proposal")
 	}
 
@@ -87,7 +87,8 @@ func (s *Service) GetProposalFeedback(proposalID uint, userID uint) ([]domain.Fe
 	}
 
 	// Check if user has access (team creator or advisor)
-	if proposal.Team.CreatedBy != userID && proposal.Team.AdvisorID != userID {
+	isAdvisor := proposal.Team.AdvisorID != nil && *proposal.Team.AdvisorID == userID
+	if proposal.Team.CreatedBy != userID && !isAdvisor {
 		return nil, errors.New("you don't have permission to view this feedback")
 	}
 

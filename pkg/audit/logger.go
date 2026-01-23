@@ -16,6 +16,21 @@ func NewLogger(db *gorm.DB) *Logger {
 	return &Logger{db: db}
 }
 
+func applyJSONDefaults(log *domain.AuditLog) {
+	if log.OldState == "" || !json.Valid([]byte(log.OldState)) {
+		log.OldState = "null"
+	}
+	if log.NewState == "" || !json.Valid([]byte(log.NewState)) {
+		log.NewState = "null"
+	}
+	if log.Changes == "" || !json.Valid([]byte(log.Changes)) {
+		log.Changes = "null"
+	}
+	if log.Metadata == "" || !json.Valid([]byte(log.Metadata)) {
+		log.Metadata = "null"
+	}
+}
+
 // Log creates a generic audit log entry
 func (a *Logger) Log(log *domain.AuditLog) error {
 	return a.db.Create(log).Error
@@ -54,7 +69,7 @@ func (a *Logger) LogAction(
 		SessionID:  sessionID,
 		Timestamp:  time.Now(),
 	}
-
+	applyJSONDefaults(log)
 	return a.db.Create(log).Error
 }
 
@@ -92,7 +107,7 @@ func (a *Logger) LogProposalSubmission(
 		Metadata:   string(metadataJSON),
 		Timestamp:  time.Now(),
 	}
-
+	applyJSONDefaults(log)
 	return a.db.Create(log).Error
 }
 
@@ -132,7 +147,7 @@ func (a *Logger) LogProposalApproval(
 		Metadata:   string(metadataJSON),
 		Timestamp:  time.Now(),
 	}
-
+	applyJSONDefaults(log)
 	return a.db.Create(log).Error
 }
 
@@ -168,7 +183,7 @@ func (a *Logger) LogTeamCreation(
 		Metadata:   string(metadataJSON),
 		Timestamp:  time.Now(),
 	}
-
+	applyJSONDefaults(log)
 	return a.db.Create(log).Error
 }
 
@@ -199,7 +214,7 @@ func (a *Logger) LogUserLogin(
 		RequestID:  requestID,
 		Timestamp:  time.Now(),
 	}
-
+	applyJSONDefaults(log)
 	return a.db.Create(log).Error
 }
 
@@ -235,7 +250,7 @@ func (a *Logger) LogVersionCreation(
 		Metadata:   string(metadataJSON),
 		Timestamp:  time.Now(),
 	}
-
+	applyJSONDefaults(log)
 	return a.db.Create(log).Error
 }
 

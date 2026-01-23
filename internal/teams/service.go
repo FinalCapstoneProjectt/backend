@@ -17,6 +17,8 @@ func NewService(r Repository) *Service {
 type CreateTeamRequest struct {
 	Name         string `json:"name" binding:"required"`
 	DepartmentID uint   `json:"department_id" binding:"required"`
+	AdvisorID    uint   `json:"advisor_id"`
+	MemberIDs    []uint `json:"member_ids"`
 }
 
 type InviteMemberRequest struct {
@@ -27,12 +29,21 @@ type RespondInvitationRequest struct {
 	Accept bool `json:"accept" binding:"required"`
 }
 
+type ApproveTeamRequest struct {
+	Approve bool `json:"approve" binding:"required"`
+}
+
 func (s *Service) CreateTeam(req CreateTeamRequest, creatorID uint) (*domain.Team, error) {
 	team := &domain.Team{
 		Name:         req.Name,
 		DepartmentID: req.DepartmentID,
 		CreatedBy:    creatorID,
 		Status:       enums.TeamStatusPendingAdvisorApproval,
+	}
+
+	// Only set AdvisorID if provided (non-zero)
+	if req.AdvisorID != 0 {
+		team.AdvisorID = &req.AdvisorID
 	}
 
 	err := s.repo.Create(team)
@@ -46,6 +57,17 @@ func (s *Service) CreateTeam(req CreateTeamRequest, creatorID uint) (*domain.Tea
 		return nil, err
 	}
 
+	// Invite initial members if provided
+	for _, memberID := range req.MemberIDs {
+		if memberID != creatorID {
+			err = s.repo.AddMember(team.ID, memberID, "member", enums.InvitationStatusPending)
+			if err != nil {
+				// Log error but continue with other members
+				continue
+			}
+		}
+	}
+
 	return s.repo.GetByID(team.ID)
 }
 
@@ -54,11 +76,37 @@ func (s *Service) GetTeam(id uint) (*domain.Team, error) {
 }
 
 func (s *Service) GetMyTeams(userID uint) ([]domain.Team, error) {
-	return s.repo.GetByCreator(userID)
+	return s.repo.GetForUser(userID)
 }
 
 func (s *Service) GetTeamMembers(teamID uint) ([]domain.User, error) {
 	return s.repo.GetMembers(teamID)
+}
+
+func (s *Service) ApproveTeam(teamID uint, advisorID uint, approve bool) (*domain.Team, error) {
+	team, err := s.repo.GetByID(teamID)
+	if err != nil {
+		return nil, err
+	}
+
+	if team.AdvisorID == nil || *team.AdvisorID != advisorID {
+		return nil, errors.New("only assigned advisor can approve this team")
+	}
+
+	if team.Status != enums.TeamStatusPendingAdvisorApproval {
+		return nil, errors.New("team is not pending advisor approval")
+	}
+
+	newStatus := enums.TeamStatusRejected
+	if approve {
+		newStatus = enums.TeamStatusApproved
+	}
+
+	if err := s.repo.UpdateStatus(teamID, newStatus); err != nil {
+		return nil, err
+	}
+
+	return s.repo.GetByID(teamID)
 }
 
 func (s *Service) InviteMember(teamID uint, userID uint, inviterID uint) error {

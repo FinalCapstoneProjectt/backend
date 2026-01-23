@@ -27,6 +27,9 @@ type CreateVersionRequest struct {
 	FileURL          string `json:"file_url" binding:"required"`
 	FileHash         string `json:"file_hash" binding:"required"`
 	FileSizeBytes    int64  `json:"file_size_bytes" binding:"required"`
+	IPAddress        string `json:"-"`
+	UserAgent        string `json:"-"`
+	SessionID        string `json:"-"`
 }
 
 type UpdateVersionRequest struct {
@@ -106,6 +109,9 @@ func (s *Service) CreateVersion(proposalID uint, req CreateVersionRequest, creat
 		FileSizeBytes:    req.FileSizeBytes,
 		VersionNumber:    versionNumber,
 		CreatedBy:        creatorID,
+		IPAddress:        req.IPAddress,
+		UserAgent:        req.UserAgent,
+		SessionID:        req.SessionID,
 	}
 
 	err = s.repo.CreateVersion(version)

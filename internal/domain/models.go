@@ -56,12 +56,12 @@ type Team struct {
 	Name         string           `gorm:"not null" json:"name"`
 	DepartmentID uint             `json:"department_id"`
 	CreatedBy    uint             `json:"created_by"`
-	AdvisorID    uint             `json:"advisor_id"`
+	AdvisorID    *uint            `json:"advisor_id"`
 	Status       enums.TeamStatus `gorm:"type:varchar(30);default:'pending_advisor_approval'" json:"status"`
 	CreatedAt    time.Time        `json:"created_at"`
 	Department   Department       `gorm:"foreignKey:DepartmentID"`
 	Creator      User             `gorm:"foreignKey:CreatedBy"`
-	Advisor      User             `gorm:"foreignKey:AdvisorID"`
+	Advisor      *User            `gorm:"foreignKey:AdvisorID"`
 	Members      []User           `gorm:"many2many:team_members;" json:"members"`
 }
 
@@ -142,17 +142,19 @@ const (
 )
 
 type Project struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	ProposalID   uint      `gorm:"unique" json:"proposal_id"`
-	TeamID       uint      `json:"team_id"`
-	Summary      string    `json:"summary"`
-	ApprovedBy   uint      `json:"approved_by"`
-	DepartmentID uint      `json:"department_id"`
-	Visibility   string    `gorm:"type:varchar(20);default:'private'" json:"visibility"`
-	ShareCount   int       `gorm:"default:0" json:"share_count"`
-	CreatedAt    time.Time `json:"created_at"`
-	Proposal     Proposal  `gorm:"foreignKey:ProposalID"`
-	Team         Team      `gorm:"foreignKey:TeamID"`
+	ID           uint       `gorm:"primaryKey" json:"id"`
+	ProposalID   uint       `gorm:"unique" json:"proposal_id"`
+	TeamID       uint       `json:"team_id"`
+	Summary      string     `json:"summary"`
+	ApprovedBy   uint       `json:"approved_by"`
+	DepartmentID uint       `json:"department_id"`
+	Visibility   string     `gorm:"type:varchar(20);default:'private'" json:"visibility"`
+	ShareCount   int        `gorm:"default:0" json:"share_count"`
+	CreatedAt    time.Time  `json:"created_at"`
+	Proposal     Proposal   `gorm:"foreignKey:ProposalID"`
+	Team         Team       `gorm:"foreignKey:TeamID"`
+	Department   Department `gorm:"foreignKey:DepartmentID"`
+	Approver     *User      `gorm:"foreignKey:ApprovedBy"`
 }
 
 type ProjectDocumentation struct {

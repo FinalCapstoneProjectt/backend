@@ -10,9 +10,10 @@ import (
 type Repository interface {
 	Create(team *domain.Team) error
 	GetByID(id uint) (*domain.Team, error)
-	GetByCreator(creatorID uint) ([]domain.Team, error)
+	GetForUser(userID uint) ([]domain.Team, error)
 	GetByDepartment(departmentID uint) ([]domain.Team, error)
 	Update(team *domain.Team) error
+	UpdateStatus(teamID uint, status enums.TeamStatus) error
 	Delete(id uint) error
 	AddMember(teamID uint, userID uint, role string, status enums.InvitationStatus) error
 	UpdateMemberStatus(teamID uint, userID uint, status enums.InvitationStatus) error
@@ -43,20 +44,32 @@ func (r *repository) GetByID(id uint) (*domain.Team, error) {
 	return &team, nil
 }
 
-func (r *repository) GetByCreator(creatorID uint) ([]domain.Team, error) {
+func (r *repository) GetForUser(userID uint) ([]domain.Team, error) {
 	var teams []domain.Team
-	err := r.db.Preload("Department").Preload("Members").Where("created_by = ?", creatorID).Find(&teams).Error
+	subQuery := r.db.Table("team_members").Select("team_id").Where("user_id = ?", userID)
+	err := r.db.
+		Model(&domain.Team{}).
+		Preload("Department").
+		Preload("Creator").
+		Preload("Advisor").
+		Preload("Members").
+		Where("created_by = ? OR advisor_id = ? OR id IN (?)", userID, userID, subQuery).
+		Find(&teams).Error
 	return teams, err
 }
 
 func (r *repository) GetByDepartment(departmentID uint) ([]domain.Team, error) {
 	var teams []domain.Team
-	err := r.db.Preload("Department").Preload("Creator").Preload("Members").Where("department_id = ?", departmentID).Find(&teams).Error
+	err := r.db.Preload("Department").Preload("Creator").Preload("Advisor").Preload("Members").Where("department_id = ?", departmentID).Find(&teams).Error
 	return teams, err
 }
 
 func (r *repository) Update(team *domain.Team) error {
 	return r.db.Save(team).Error
+}
+
+func (r *repository) UpdateStatus(teamID uint, status enums.TeamStatus) error {
+	return r.db.Model(&domain.Team{}).Where("id = ?", teamID).Update("status", status).Error
 }
 
 func (r *repository) Delete(id uint) error {
