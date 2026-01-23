@@ -5,14 +5,13 @@ import (
 	"backend/internal/ai_checker"
 	"backend/internal/auth"
 	"backend/internal/departments"
+	"backend/internal/files"
+
 	"backend/internal/documentations"
 	"backend/internal/domain"
 	"backend/internal/feedback"
-	"backend/internal/files"
-	"backend/internal/notifications"
 	"backend/internal/projects"
 	"backend/internal/proposals"
-	"backend/internal/reviews"
 	"backend/internal/teams"
 	"backend/internal/universities"
 	"backend/internal/users"
@@ -37,11 +36,7 @@ type App struct {
 	FeedbackHandler      *feedback.Handler
 	ProjectHandler       *projects.Handler
 	DocumentationHandler *documentations.Handler
-	NotificationHandler  *notifications.Handler
-	ReviewHandler        *reviews.Handler
-	AIHandler            *ai_checker.Handler
-	AuditHandler         *audit.Handler
-	FileHandler          *files.Handler
+	AICheckerHandler     *ai_checker.Handler
 }
 
 func Bootstrap(cfg config.Config) (*App, error) {
@@ -117,8 +112,7 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	// 9. Initialize Proposal Service
 	proposalRepo := proposals.NewRepository(db)
 	// ⚠️ FIXED: Added 'db' argument for transaction support
-	proposalService := proposals.NewService(proposalRepo, db) 
-	proposalHandler := proposals.NewHandler(proposalService)
+	proposalService := proposals.NewService(proposalRepo, db)
 	log.Println("Proposal service initialized")
 
 	// 10. Initialize Feedback Service
@@ -131,47 +125,25 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	projectRepo := projects.NewRepository(db)
 	// Ensure Project Service signature matches. Assuming it takes proposalRepo.
 	// If Project Service also needs DB now, check internal/projects/service.go
-	projectService := projects.NewService(projectRepo, proposalRepo) 
+	projectService := projects.NewService(projectRepo, proposalRepo)
 	projectHandler := projects.NewHandler(projectService)
-	uploader := files.NewUploader("./uploads") 
-	
+	uploader := files.NewUploader("./uploads")
+
 	log.Println("Project service initialized")
 
 	// 12. Initialize Documentation Service
 	documentationRepo := documentations.NewRepository(db)
-	documentationService := documentations.NewService(documentationRepo, uploader) 
+	documentationService := documentations.NewService(documentationRepo, uploader)
 	documentationHandler := documentations.NewHandler(documentationService)
 	log.Println("Documentation service initialized")
 
-	// 13. Initialize Notification Service
-	notificationRepo := notifications.NewRepository(db)
-	notificationService := notifications.NewService(notificationRepo)
-	notificationHandler := notifications.NewHandler(notificationService)
-	log.Println("Notification service initialized")
+	// 13. Initialize AI Checker Client/Handler
+	aiClient := ai_checker.NewClient(cfg.AIServiceURL, cfg.AIServiceAPIKey)
+	aiHandler := ai_checker.NewHandler(aiClient)
+	log.Println("AI checker initialized")
 
-	// 14. Initialize Review Service
-	reviewRepo := reviews.NewRepository(db)
-	reviewService := reviews.NewService(reviewRepo, projectRepo)
-	reviewHandler := reviews.NewHandler(reviewService)
-	log.Println("Review service initialized")
-
-	// 15. Initialize AI Checker Service
-	aiServiceURL := cfg.AIServiceURL
-	if aiServiceURL == "" {
-		aiServiceURL = "http://localhost:8001" // default
-	}
-	aiClient := ai_checker.NewClient(aiServiceURL, cfg.AIServiceKey)
-	aiHandler := ai_checker.NewHandler(aiClient, nil) // proposalRepo adapter can be added later
-	log.Println("AI checker service initialized")
-
-	// 16. Initialize Audit Handler
-	auditRepo := audit.NewRepository(db)
-	auditHandler := audit.NewHandler(auditRepo)
-	log.Println("Audit handler initialized")
-
-	// 17. Initialize File Handler
-	fileHandler := files.NewHandler(db)
-	log.Println("File handler initialized")
+	// Wire Proposal Handler after AI client is ready
+	proposalHandler := proposals.NewHandler(proposalService, aiClient)
 
 	return &App{
 		Config:               cfg,
@@ -187,10 +159,6 @@ func Bootstrap(cfg config.Config) (*App, error) {
 		FeedbackHandler:      feedbackHandler,
 		ProjectHandler:       projectHandler,
 		DocumentationHandler: documentationHandler,
-		NotificationHandler:  notificationHandler,
-		ReviewHandler:        reviewHandler,
-		AIHandler:            aiHandler,
-		AuditHandler:         auditHandler,
-		FileHandler:          fileHandler,
+		AICheckerHandler:     aiHandler,
 	}, nil
 }
