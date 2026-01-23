@@ -70,7 +70,7 @@ func (s *Service) CreateTeacher(req CreateTeacherRequest) (*domain.User, error) 
 		Name:         req.Name,
 		Email:        req.Email,
 		Password:     string(hashedPassword),
-		Role:         enums.RoleTeacher,
+		Role:         enums.RoleAdvisor,
 		UniversityID: req.UniversityID,
 		DepartmentID: req.DepartmentID,
 		IsActive:     true,
@@ -164,4 +164,9 @@ func (s *Service) DeleteUser(id uint) error {
 	}
 
 	return s.repo.Delete(id)
+}
+
+// Add Implementation
+func (s *Service) GetPeers(departmentID uint, universityID uint, excludeUserID uint) ([]domain.User, error) {
+	return s.repo.FindPeers(departmentID, universityID, excludeUserID)
 }

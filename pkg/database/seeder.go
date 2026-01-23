@@ -55,42 +55,36 @@ func SeedDatabase(db *gorm.DB) error {
 		log.Printf("✓ Created department: %s (%s)", dept.Name, dept.Code)
 	}
 
-	// 3. Create default admin user
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("Admin@123"), bcrypt.DefaultCost)
-	if err != nil {
-		log.Printf("Failed to hash admin password: %v", err)
-		return err
+	// Password Helper
+	hash := func(pwd string) string {
+		h, _ := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+		return string(h)
 	}
 
+	// 3. Create default admin user
 	admin := &domain.User{
-		Name:          "System Administrator",
-		Email:         "admin@astu.edu.et",
-		Password:      string(hashedPassword),
-		Role:          enums.RoleAdmin,
+		Name:          "Head of CS Department", // Changed name to reflect role
+		Email:         "head_cs@astu.edu.et",   // Changed email
+		Password:      hash("Admin@123"),
+		Role:          enums.RoleAdmin,       // Acts as Dept Head
 		UniversityID:  university.ID,
+		DepartmentID:  1,                     // ⚠️ CRITICAL: Must belong to CS (ID: 1)
 		IsActive:      true,
 		EmailVerified: true,
 	}
 
 	if err := db.Create(admin).Error; err != nil {
-		log.Printf("Failed to create admin user: %v", err)
 		return err
 	}
-	log.Println("✓ Created admin user: admin@astu.edu.et (password: Admin@123)")
+	log.Println("✓ Created admin user")
 
-	// 4. Create sample teacher for testing
-	teacherDeptID := uint(1) // CS department
-	hashedTeacherPassword, err := bcrypt.GenerateFromPassword([]byte("Teacher@123"), bcrypt.DefaultCost)
-	if err != nil {
-		log.Printf("Failed to hash teacher password: %v", err)
-		return err
-	}
-
+	// 4. Create sample advisor (Teacher)
+	teacherDeptID := uint(1) // CS
 	teacher := &domain.User{
 		Name:          "Dr. John Doe",
 		Email:         "teacher@astu.edu.et",
-		Password:      string(hashedTeacherPassword),
-		Role:          enums.RoleTeacher,
+		Password:      hash("Teacher@123"),
+		Role:          enums.RoleAdvisor, // Changed to match your Enums
 		UniversityID:  university.ID,
 		DepartmentID:  teacherDeptID,
 		IsActive:      true,
@@ -98,24 +92,34 @@ func SeedDatabase(db *gorm.DB) error {
 	}
 
 	if err := db.Create(teacher).Error; err != nil {
-		log.Printf("Failed to create teacher user: %v", err)
 		return err
 	}
-	log.Println("✓ Created teacher user: teacher@astu.edu.et (password: Teacher@123)")
+	log.Println("✓ Created advisor user")
+
+	// 5. Create sample student (NEW!)
+	student := &domain.User{
+		Name:          "Jaefer Student",
+		Email:         "student@astu.edu.et",
+		Password:      hash("Student@123"),
+		Role:          enums.RoleStudent,
+		UniversityID:  university.ID,
+		DepartmentID:  uint(2), // SE
+		StudentID:     "ETS1234/14",
+		IsActive:      true,
+		EmailVerified: true,
+	}
+
+	if err := db.Create(student).Error; err != nil {
+		return err
+	}
+	log.Println("✓ Created student user")
 
 	log.Println("✓ Database seeded successfully!")
 	log.Println("\nTest Credentials:")
 	log.Println("─────────────────────────────────────────")
 	log.Println("Admin:   admin@astu.edu.et   / Admin@123")
-	log.Println("Teacher: teacher@astu.edu.et / Teacher@123")
-	log.Println("─────────────────────────────────────────")
-	log.Println("\nAvailable Departments:")
-	log.Println("─────────────────────────────────────────")
-	log.Println("1 - Computer Science (CS)")
-	log.Println("2 - Software Engineering (SE)")
-	log.Println("3 - Information Technology (IT)")
-	log.Println("4 - Electrical Engineering (EE)")
-	log.Println("5 - Mechanical Engineering (ME)")
+	log.Println("Advisor: teacher@astu.edu.et / Teacher@123")
+	log.Println("Student: student@astu.edu.et / Student@123")
 	log.Println("─────────────────────────────────────────")
 
 	return nil

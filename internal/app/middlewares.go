@@ -5,6 +5,7 @@ import (
 	"backend/internal/auth"
 	"backend/pkg/audit"
 	"backend/pkg/response"
+	"backend/pkg/enums" 
 	"net/http"
 	"strings"
 	"time"
@@ -76,6 +77,8 @@ func AuthMiddleware(cfg config.Config) gin.HandlerFunc {
 		c.Set("user_email", claims.Email)
 		c.Set("user_role", claims.Role)
 		c.Set("department_id", claims.DepartmentID)
+		c.Set("university_id", claims.UniversityID)
+        c.Set("claims", claims) 
 
 		c.Next()
 	}
@@ -91,12 +94,23 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 			return
 		}
 
-		role := userRole.(string)
+		// FIXED: Assert as enums.Role, then cast to string
+		role, ok := userRole.(enums.Role)
+		if !ok {
+            // Fallback: try asserting as string just in case
+            roleStr, okStr := userRole.(string)
+            if !okStr {
+			    response.Error(c, http.StatusForbidden, "Invalid role type in context", nil)
+			    c.Abort()
+			    return
+            }
+            role = enums.Role(roleStr)
+		}
 
 		// Check if user role is in allowed roles
 		allowed := false
 		for _, allowedRole := range allowedRoles {
-			if role == allowedRole {
+			if role == enums.Role(allowedRole) {
 				allowed = true
 				break
 			}
@@ -145,7 +159,7 @@ func AuditMiddleware(auditLogger *audit.Logger) gin.HandlerFunc {
 
 			role := ""
 			if userRole != nil {
-				role = userRole.(string)
+				role = string(userRole.(enums.Role))
 			}
 
 			email := ""

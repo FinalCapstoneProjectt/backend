@@ -18,11 +18,12 @@ func NewHandler(service Service) *Handler {
 
 // Register handles user registration
 // @Summary Register a new user
+// @Description Register a new account. Role must be: student, advisor, admin, or public.
 // @Tags Auth
 // @Accept json
 // @Produce json
 // @Param request body RegisterRequest true "Registration details"
-// @Success 201 {object} domain.User
+// @Success 201 {object} response.Response{data=domain.User}
 // @Failure 400 {object} response.ErrorResponse
 // @Failure 409 {object} response.ErrorResponse
 // @Router /auth/register [post]
@@ -51,11 +52,12 @@ func (h *Handler) Register(c *gin.Context) {
 
 // Login handles user login
 // @Summary Login user
+// @Description Authenticates a user and returns a JWT token.
 // @Tags Auth
 // @Accept json
 // @Produce json
 // @Param request body LoginRequest true "Login credentials"
-// @Success 200 {object} LoginResponse
+// @Success 200 {object} response.Response{data=LoginResponse}
 // @Failure 400 {object} response.ErrorResponse
 // @Failure 401 {object} response.ErrorResponse
 // @Router /auth/login [post]
@@ -89,11 +91,12 @@ func (h *Handler) Login(c *gin.Context) {
 
 // RefreshToken handles token refresh
 // @Summary Refresh JWT token
+// @Description Invalidates old token (optional) and issues a new one.
 // @Tags Auth
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Failure 401 {object} response.ErrorResponse
 // @Router /auth/refresh [post]
 func (h *Handler) RefreshToken(c *gin.Context) {
@@ -119,10 +122,11 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 
 // GetProfile returns the authenticated user's profile
 // @Summary Get user profile
+// @Description Returns the profile of the currently logged-in user.
 // @Tags Auth
 // @Security BearerAuth
 // @Produce json
-// @Success 200 {object} domain.User
+// @Success 200 {object} response.Response{data=domain.User}
 // @Failure 401 {object} response.ErrorResponse
 // @Router /auth/profile [get]
 func (h *Handler) GetProfile(c *gin.Context) {

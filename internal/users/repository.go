@@ -2,6 +2,7 @@ package users
 
 import (
 	"backend/internal/domain"
+	"backend/pkg/enums" // Make sure to import this!
 
 	"gorm.io/gorm"
 )
@@ -15,6 +16,7 @@ type Repository interface {
 	UpdateStatus(id uint, isActive bool) error
 	AssignDepartment(userID uint, departmentID uint) error
 	Delete(id uint) error
+	FindPeers(departmentID uint, universityID uint, excludeUserID uint) ([]domain.User, error)
 }
 
 type repository struct {
@@ -82,4 +84,17 @@ func (r *repository) AssignDepartment(userID uint, departmentID uint) error {
 
 func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&domain.User{}, id).Error
+}
+
+func (r *repository) FindPeers(departmentID uint, universityID uint, excludeUserID uint) ([]domain.User, error) {
+	var users []domain.User
+	// Fetch users who are:
+	// 1. In the same University
+	// 2. In the same Department
+	// 3. Are Students
+	// 4. Are NOT the requester (excludeUserID)
+	err := r.db.Where("university_id = ? AND department_id = ? AND role = ? AND id != ?", 
+		universityID, departmentID, enums.RoleStudent, excludeUserID).
+		Find(&users).Error
+	return users, err
 }

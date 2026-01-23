@@ -33,6 +33,23 @@ func NewRouter(app *App) *gin.Engine {
 	// API v1 Routes
 	v1 := r.Group("/api/v1")
 	{
+
+		 {
+        // Universities
+        universities := v1.Group("/universities")
+        {
+            universities.GET("", app.UniversityHandler.GetUniversities)
+            universities.GET("/:id", app.UniversityHandler.GetUniversity)
+        }
+
+        // Departments
+        departments := v1.Group("/departments")
+        {
+            departments.GET("", app.DepartmentHandler.GetDepartments)
+            departments.GET("/:id", app.DepartmentHandler.GetDepartment)
+        }
+    }
+
 		// Public Auth Routes
 		authRoutes := v1.Group("/auth")
 		{
@@ -41,13 +58,15 @@ func NewRouter(app *App) *gin.Engine {
 			authRoutes.POST("/refresh", app.AuthHandler.RefreshToken)
 		}
 
+		
 		// Protected Routes (require authentication)
 		protected := v1.Group("")
 		protected.Use(AuthMiddleware(app.Config))
 		{
 			// Auth Profile
 			protected.GET("/auth/profile", app.AuthHandler.GetProfile)
-
+			//  NEW: Peer List for Invites
+			protected.GET("/users/peers", app.UserHandler.GetPeers)
 			// Teams (Students)
 			teams := protected.Group("/teams")
 			{
@@ -58,29 +77,50 @@ func NewRouter(app *App) *gin.Engine {
 				teams.POST("/:id/invite", RoleMiddleware("student"), app.TeamHandler.InviteMember)
 				teams.POST("/:id/invitation/respond", RoleMiddleware("student"), app.TeamHandler.RespondToInvitation)
 				teams.DELETE("/:id/members/:memberId", RoleMiddleware("student"), app.TeamHandler.RemoveMember)
+    			teams.POST("/:id/transfer-leadership", RoleMiddleware("student"), app.TeamHandler.TransferLeadership)
+    			teams.DELETE("/:id", RoleMiddleware("student"), app.TeamHandler.DeleteTeam)
+				teams.POST("/:id/finalize", RoleMiddleware("student"), app.TeamHandler.FinalizeTeam)
 			}
 
 			// Proposals (Students & Teachers)
 			proposals := protected.Group("/proposals")
 			{
+				// 1. Create a new Draft (Student Only)
+				// POST /api/v1/proposals
 				proposals.POST("", RoleMiddleware("student"), app.ProposalHandler.CreateProposal)
-				proposals.GET("", app.ProposalHandler.GetProposals)
-				proposals.GET("/:id", app.ProposalHandler.GetProposal)
-				proposals.POST("/:id/versions", RoleMiddleware("student"), app.ProposalHandler.CreateVersion)
-				proposals.GET("/:id/versions", app.ProposalHandler.GetVersions)
-				proposals.POST("/:id/submit", RoleMiddleware("student"), app.ProposalHandler.SubmitProposal)
-				proposals.DELETE("/:id", RoleMiddleware("student"), app.ProposalHandler.DeleteProposal)
-				proposals.GET("/:id/feedback", app.FeedbackHandler.GetProposalFeedback)
-			}
 
-			// Feedback (Teachers)
-			feedback := protected.Group("/feedback")
-			feedback.Use(RoleMiddleware("teacher"))
-			{
-				feedback.GET("/pending", app.FeedbackHandler.GetPendingProposals)
-				feedback.POST("", app.FeedbackHandler.CreateFeedback)
-				feedback.GET("/:id", app.FeedbackHandler.GetFeedback)
+				// 2. Update Draft OR Create Revision (Student Only)
+				// PUT /api/v1/proposals/:id
+				proposals.PUT("/:id", RoleMiddleware("student"), app.ProposalHandler.UpdateProposal)
+
+				// 3. Submit Proposal (Student Only - Leader)
+				// POST /api/v1/proposals/:id/submit
+				proposals.POST("/:id/submit", RoleMiddleware("student"), app.ProposalHandler.SubmitProposal)
+
+				// 4. View Proposals (Students see theirs, Teachers see dept proposals)
+				// GET /api/v1/proposals
+				proposals.GET("", app.ProposalHandler.GetProposals)
+
+				// 5. View Specific Proposal Details
+				// GET /api/v1/proposals/:id
+				proposals.GET("/:id", app.ProposalHandler.GetProposal)
+
+				// 6. View Version History
+				// GET /api/v1/proposals/:id/versions
+				proposals.GET("/:id/versions", app.ProposalHandler.GetVersions)
+
+				// 7. Delete Draft (Student Only)
+				// DELETE /api/v1/proposals/:id
+				proposals.DELETE("/:id", RoleMiddleware("student"), app.ProposalHandler.DeleteProposal)
 			}
+			// Feedback (Teachers)
+			// feedback := protected.Group("/feedback")
+			// feedback.Use(RoleMiddleware("teacher"))
+			// {
+			// 	feedback.GET("/pending", app.FeedbackHandler.GetPendingProposals)
+			// 	feedback.POST("", app.FeedbackHandler.CreateFeedback)
+			// 	feedback.GET("/:id", app.FeedbackHandler.GetFeedback)
+			// }
 
 			// Admin User Management
 			admin := protected.Group("/admin")
@@ -108,40 +148,27 @@ func NewRouter(app *App) *gin.Engine {
 			}
 
 			// Documentation (Team members upload, teachers review)
-			//documentation := protected.Group("/documentation")
-			//{
-			//	documentation.POST("", app.DocumentationHandler.UploadDocument)
-			//	documentation.GET("/:id", app.DocumentationHandler.GetDocument)
-			//}
+			documentation := protected.Group("/documentation")
+			{
+				// Documentation handler is not available on App yet; return a placeholder response
+				documentation.POST("", func(c *gin.Context) {
+					response.JSON(c, http.StatusNotImplemented, "upload document not implemented", nil)
+				})
+				documentation.GET("/:id", func(c *gin.Context) {
+					response.JSON(c, http.StatusNotImplemented, "get document not implemented", nil)
+				})
+			}
 
 			// Documentation review (Teachers only)
-			//docReview := protected.Group("/documentation")
-			//docReview.Use(RoleMiddleware("teacher", "admin"))
-			//{
-			//	docReview.POST("/:id/review", app.DocumentationHandler.ReviewDocument)
-			//}
-
-			// Universities (Admin only)
-			universities := protected.Group("/universities")
-			universities.Use(RoleMiddleware("admin"))
+			docReview := protected.Group("/documentation")
+			docReview.Use(RoleMiddleware("teacher", "admin"))
 			{
-				universities.GET("", app.UniversityHandler.GetUniversities)
-				universities.POST("", app.UniversityHandler.CreateUniversity)
-				universities.GET("/:id", app.UniversityHandler.GetUniversity)
-				universities.PUT("/:id", app.UniversityHandler.UpdateUniversity)
-				universities.DELETE("/:id", app.UniversityHandler.DeleteUniversity)
+				docReview.POST("/:id/review", func(c *gin.Context) {
+					response.JSON(c, http.StatusNotImplemented, "review document not implemented", nil)
+				})
 			}
 
-			// Departments (Admin/Department Head only)
-			departments := protected.Group("/departments")
-			departments.Use(RoleMiddleware("admin", "department_head"))
-			{
-				departments.GET("", app.DepartmentHandler.GetDepartments)
-				departments.POST("", app.DepartmentHandler.CreateDepartment)
-				departments.GET("/:id", app.DepartmentHandler.GetDepartment)
-				departments.PUT("/:id", app.DepartmentHandler.UpdateDepartment)
-				departments.DELETE("/:id", app.DepartmentHandler.DeleteDepartment)
-			}
+	
 		}
 	}
 

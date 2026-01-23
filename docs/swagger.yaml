@@ -31,6 +31,8 @@ definitions:
         minLength: 8
         type: string
       role:
+        description: Swagger example
+        example: student
         type: string
       university_id:
         type: integer
@@ -113,43 +115,47 @@ definitions:
     - FeedbackDecisionApprove
     - FeedbackDecisionRevise
     - FeedbackDecisionReject
-  domain.Proposal:
+  domain.Project:
     properties:
-      approved_at:
-        type: string
       approved_by:
         type: integer
-      approver:
-        $ref: '#/definitions/domain.User'
       created_at:
         type: string
-      current_version_id:
+      department_id:
         type: integer
-      currentVersion:
-        $ref: '#/definitions/domain.ProposalVersion'
-      feedback:
-        items:
-          $ref: '#/definitions/domain.Feedback'
-        type: array
       id:
         type: integer
-      rejected_at:
-        type: string
-      rejected_by:
+      proposal:
+        $ref: '#/definitions/domain.Proposal'
+      proposal_id:
         type: integer
-      rejecter:
-        $ref: '#/definitions/domain.User'
-      rejection_reason:
-        type: string
-      status:
-        $ref: '#/definitions/enums.ProposalStatus'
-      submission_count:
+      share_count:
         type: integer
-      submitted_at:
+      summary:
         type: string
       team:
         $ref: '#/definitions/domain.Team'
       team_id:
+        type: integer
+      visibility:
+        type: string
+    type: object
+  domain.Proposal:
+    properties:
+      advisor_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      status:
+        $ref: '#/definitions/enums.ProposalStatus'
+      team:
+        allOf:
+        - $ref: '#/definitions/domain.Team'
+        description: Relationships
+      team_id:
+        description: ⚠️ Changed to pointer to allow NULL
         type: integer
       updated_at:
         type: string
@@ -160,30 +166,22 @@ definitions:
     type: object
   domain.ProposalVersion:
     properties:
+      abstract:
+        type: string
       created_at:
         type: string
-      created_by:
-        type: integer
-      creator:
-        $ref: '#/definitions/domain.User'
-      expected_outcomes:
-        type: string
-      file_hash:
-        type: string
-      file_size_bytes:
-        type: integer
-      file_url:
+      expected_timeline:
         type: string
       id:
         type: integer
-      is_approved_version:
+      is_approved:
         type: boolean
       methodology:
         type: string
       objectives:
         type: string
-      proposal:
-        $ref: '#/definitions/domain.Proposal'
+      problem_statement:
+        type: string
       proposal_id:
         type: integer
       title:
@@ -193,30 +191,47 @@ definitions:
     type: object
   domain.Team:
     properties:
-      advisor:
-        $ref: '#/definitions/domain.User'
       advisor_id:
+        description: Admin assigns this later
         type: integer
       created_at:
         type: string
       created_by:
         type: integer
-      creator:
-        $ref: '#/definitions/domain.User'
-      department:
-        $ref: '#/definitions/domain.Department'
       department_id:
         type: integer
       id:
         type: integer
+      is_finalized:
+        description: The "Lock"
+        type: boolean
       members:
+        description: Relationships
         items:
-          $ref: '#/definitions/domain.User'
+          $ref: '#/definitions/domain.TeamMember'
         type: array
       name:
         type: string
-      status:
-        $ref: '#/definitions/enums.TeamStatus'
+      proposals:
+        items:
+          $ref: '#/definitions/domain.Proposal'
+        type: array
+    type: object
+  domain.TeamMember:
+    properties:
+      invitation_status:
+        $ref: '#/definitions/enums.InvitationStatus'
+      role:
+        description: '''leader'', ''member'''
+        type: string
+      team_id:
+        type: integer
+      user:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: Preload User details for UI
+      user_id:
+        type: integer
     type: object
   domain.University:
     properties:
@@ -271,6 +286,16 @@ definitions:
       updated_at:
         type: string
     type: object
+  enums.InvitationStatus:
+    enum:
+    - pending
+    - accepted
+    - rejected
+    type: string
+    x-enum-varnames:
+    - InvitationStatusPending
+    - InvitationStatusAccepted
+    - InvitationStatusRejected
   enums.ProposalStatus:
     enum:
     - draft
@@ -290,25 +315,15 @@ definitions:
   enums.Role:
     enum:
     - student
-    - teacher
+    - advisor
     - admin
     - public
     type: string
     x-enum-varnames:
     - RoleStudent
-    - RoleTeacher
+    - RoleAdvisor
     - RoleAdmin
     - RolePublic
-  enums.TeamStatus:
-    enum:
-    - pending_advisor_approval
-    - approved
-    - rejected
-    type: string
-    x-enum-varnames:
-    - TeamStatusPendingAdvisorApproval
-    - TeamStatusApproved
-    - TeamStatusRejected
   feedback.CreateFeedbackRequest:
     properties:
       comment:
@@ -326,37 +341,57 @@ definitions:
     - proposal_id
     - proposal_version_id
     type: object
-  proposals.CreateProposalRequest:
+  projects.CreateProjectRequest:
     properties:
-      team_id:
+      keywords:
+        type: string
+      proposal_id:
         type: integer
+      summary:
+        minLength: 50
+        type: string
     required:
-    - team_id
+    - keywords
+    - proposal_id
+    - summary
     type: object
-  proposals.CreateVersionRequest:
+  projects.UpdateProjectRequest:
     properties:
-      expected_outcomes:
+      keywords:
         type: string
-      file_hash:
+      summary:
+        minLength: 50
         type: string
-      file_size_bytes:
-        type: integer
-      file_url:
+    required:
+    - keywords
+    - summary
+    type: object
+  proposals.SaveProposalRequest:
+    properties:
+      abstract:
+        type: string
+      expected_timeline:
         type: string
       methodology:
         type: string
       objectives:
         type: string
+      problem_statement:
+        type: string
+      team_id:
+        description: Optional
+        type: integer
       title:
         type: string
     required:
-    - expected_outcomes
-    - file_hash
-    - file_size_bytes
-    - file_url
-    - methodology
-    - objectives
     - title
+    type: object
+  proposals.SubmitProposalRequest:
+    properties:
+      team_id:
+        type: integer
+    required:
+    - team_id
     type: object
   response.ErrorResponse:
     properties:
@@ -379,12 +414,9 @@ definitions:
     type: object
   teams.CreateTeamRequest:
     properties:
-      department_id:
-        type: integer
       name:
         type: string
     required:
-    - department_id
     - name
     type: object
   teams.InviteMemberRequest:
@@ -398,8 +430,13 @@ definitions:
     properties:
       accept:
         type: boolean
+    type: object
+  teams.TransferLeadershipRequest:
+    properties:
+      new_leader_id:
+        type: integer
     required:
-    - accept
+    - new_leader_id
     type: object
   universities.CreateUniversityRequest:
     properties:
@@ -797,6 +834,7 @@ paths:
     post:
       consumes:
       - application/json
+      description: Authenticates a user and returns a JWT token.
       parameters:
       - description: Login credentials
         in: body
@@ -810,7 +848,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/auth.LoginResponse'
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.LoginResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -824,13 +867,19 @@ paths:
       - Auth
   /auth/profile:
     get:
+      description: Returns the profile of the currently logged-in user.
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/domain.User'
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.User'
+              type: object
         "401":
           description: Unauthorized
           schema:
@@ -844,14 +893,14 @@ paths:
     post:
       consumes:
       - application/json
+      description: Invalidates old token (optional) and issues a new one.
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/response.Response'
         "401":
           description: Unauthorized
           schema:
@@ -865,6 +914,8 @@ paths:
     post:
       consumes:
       - application/json
+      description: 'Register a new account. Role must be: student, advisor, admin,
+        or public.'
       parameters:
       - description: Registration details
         in: body
@@ -878,7 +929,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/domain.User'
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.User'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1190,17 +1246,21 @@ paths:
       summary: Get pending proposals for review
       tags:
       - Feedback
-  /proposals:
+  /projects:
     get:
-      description: Get all proposals (filtered by status, department)
+      description: Get all projects with optional filters
       parameters:
-      - description: Filter by status (draft, submitted, under_review, etc.)
+      - description: Filter by visibility (private, public)
         in: query
-        name: status
+        name: visibility
         type: string
       - description: Filter by department ID
         in: query
         name: department_id
+        type: integer
+      - description: Filter by team ID
+        in: query
+        name: team_id
         type: integer
       produces:
       - application/json
@@ -1213,33 +1273,29 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/domain.Proposal'
+                    $ref: '#/definitions/domain.Project'
                   type: array
               type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: List proposals
+      summary: List all projects
       tags:
-      - Proposals
+      - Projects
     post:
       consumes:
       - application/json
-      description: Student creates a new proposal in draft state
+      description: Convert an approved proposal into a formal project
       parameters:
-      - description: Proposal details
+      - description: Project details
         in: body
-        name: proposal
+        name: project
         required: true
         schema:
-          $ref: '#/definitions/proposals.CreateProposalRequest'
+          $ref: '#/definitions/projects.CreateProjectRequest'
       produces:
       - application/json
       responses:
@@ -1250,7 +1306,7 @@ paths:
             - $ref: '#/definitions/response.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.Proposal'
+                  $ref: '#/definitions/domain.Project'
               type: object
         "400":
           description: Bad Request
@@ -1260,8 +1316,87 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "409":
-          description: Conflict
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create project from approved proposal
+      tags:
+      - Projects
+  /projects/{id}:
+    get:
+      description: Retrieve specific project details
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Project'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get project by ID
+      tags:
+      - Projects
+    put:
+      consumes:
+      - application/json
+      description: Update project summary and keywords
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated project details
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/projects.UpdateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Project'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "500":
@@ -1270,14 +1405,14 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Create a new proposal (draft)
+      summary: Update project details
       tags:
-      - Proposals
-  /proposals/{id}:
-    delete:
-      description: Delete a proposal (only allowed for drafts)
+      - Projects
+  /projects/{id}/publish:
+    post:
+      description: Make project visible to public users
       parameters:
-      - description: Proposal ID
+      - description: Project ID
         in: path
         name: id
         required: true
@@ -1307,11 +1442,100 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Delete a draft proposal
+      summary: Publish project to public archive
+      tags:
+      - Projects
+  /proposals:
+    get:
+      description: Retrieve proposals with optional filters
+      parameters:
+      - description: Proposal status
+        in: query
+        name: status
+        type: string
+      - description: Department ID
+        in: query
+        name: department_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Proposal'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get proposals
+      tags:
+      - Proposals
+    post:
+      consumes:
+      - application/json
+      description: Creates a new proposal ID with version 1. Team is optional at this
+        stage.
+      parameters:
+      - description: Proposal details
+        in: body
+        name: proposal
+        required: true
+        schema:
+          $ref: '#/definitions/proposals.SaveProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Proposal'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new proposal draft
+      tags:
+      - Proposals
+  /proposals/{id}:
+    delete:
+      description: Deletes a proposal if it is in Draft status
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a proposal
       tags:
       - Proposals
     get:
-      description: Retrieve proposal details with versions and feedback
+      description: Retrieve a specific proposal by its ID
       parameters:
       - description: Proposal ID
         in: path
@@ -1345,6 +1569,40 @@ paths:
       security:
       - BearerAuth: []
       summary: Get proposal by ID
+      tags:
+      - Proposals
+    put:
+      consumes:
+      - application/json
+      description: 'If Draft: updates existing. If Rejected/Revision: creates new
+        version.'
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Proposal details
+        in: body
+        name: proposal
+        required: true
+        schema:
+          $ref: '#/definitions/proposals.SaveProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Proposal'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update proposal or create revision
       tags:
       - Proposals
   /proposals/{id}/feedback:
@@ -1393,13 +1651,21 @@ paths:
       - Feedback
   /proposals/{id}/submit:
     post:
-      description: Team leader submits proposal, locks it, and notifies teacher
+      consumes:
+      - application/json
+      description: Locks proposal and sends to Admin. Requires Finalized Team.
       parameters:
       - description: Proposal ID
         in: path
         name: id
         required: true
         type: integer
+      - description: Team ID Confirmation
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/proposals.SubmitProposalRequest'
       produces:
       - application/json
       responses:
@@ -1407,30 +1673,14 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/response.Response'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Submit proposal for review
+      summary: Submit proposal
       tags:
       - Proposals
   /proposals/{id}/versions:
     get:
-      description: Retrieve version history for a proposal
+      description: Retrieve a specific proposal by its ID
       parameters:
       - description: Proposal ID
         in: path
@@ -1451,70 +1701,13 @@ paths:
                     $ref: '#/definitions/domain.ProposalVersion'
                   type: array
               type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Get all versions of a proposal
-      tags:
-      - Proposals
-    post:
-      consumes:
-      - application/json
-      description: Add a new version to a draft or revision-required proposal
-      parameters:
-      - description: Proposal ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Version details
-        in: body
-        name: version
-        required: true
-        schema:
-          $ref: '#/definitions/proposals.CreateVersionRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/domain.ProposalVersion'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Create a new proposal version
+      summary: Get proposal by ID
       tags:
       - Proposals
   /teams:
@@ -1623,6 +1816,38 @@ paths:
       security:
       - BearerAuth: []
       summary: Get team by ID
+      tags:
+      - Teams
+  /teams/{id}/finalize:
+    post:
+      consumes:
+      - application/json
+      description: Locks the team structure so a proposal can be created. Only Leader
+        can do this.
+      parameters:
+      - description: Team ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Finalize a team
       tags:
       - Teams
   /teams/{id}/invitation/respond:
@@ -1755,20 +1980,23 @@ paths:
       summary: Get team members
       tags:
       - Teams
-  /teams/{id}/members/{memberId}:
-    delete:
-      description: Team leader removes a member from the team
+  /teams/{id}/transfer-leadership:
+    post:
+      consumes:
+      - application/json
+      description: Assign a new leader. Old leader becomes a member.
       parameters:
       - description: Team ID
         in: path
         name: id
         required: true
         type: integer
-      - description: Member User ID
-        in: path
-        name: memberId
+      - description: New Leader ID
+        in: body
+        name: request
         required: true
-        type: integer
+        schema:
+          $ref: '#/definitions/teams.TransferLeadershipRequest'
       produces:
       - application/json
       responses:
@@ -1780,21 +2008,9 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Remove a member from team
+      summary: Transfer team leadership
       tags:
       - Teams
   /universities:

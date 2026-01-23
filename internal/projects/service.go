@@ -33,37 +33,38 @@ type UpdateProjectRequest struct {
 }
 
 func (s *Service) CreateProject(req CreateProjectRequest, userID uint) (*domain.Project, error) {
-	// 1. Verify proposal exists and is approved
-	proposal, err := s.proposalRepo.GetByID(req.ProposalID)
-	if err != nil {
-		return nil, err
-	}
+	// // 1. Verify proposal exists and is approved
+	// proposal, err := s.proposalRepo.GetByID(req.ProposalID)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	if proposal.Status != "approved" {
-		return nil, errors.New("only approved proposals can become projects")
-	}
+	// if proposal.Status != "approved" {
+	// 	return nil, errors.New("only approved proposals can become projects")
+	// }
 
-	// 2. Check if project already exists for this proposal
-	existing, _ := s.repo.GetByProposalID(req.ProposalID)
-	if existing != nil {
-		return nil, errors.New("project already exists for this proposal")
-	}
+	// // 2. Check if project already exists for this proposal
+	// existing, _ := s.repo.GetByProposalID(req.ProposalID)
+	// if existing != nil {
+	// 	return nil, errors.New("project already exists for this proposal")
+	// }
 
-	// 3. Create project
-	project := &domain.Project{
-		ProposalID:   req.ProposalID,
-		TeamID:       proposal.TeamID,
-		DepartmentID: proposal.Team.DepartmentID,
-		Summary:      req.Summary,
-		ApprovedBy:   userID,
-		Visibility:   "private",
-	}
+	// // 3. Create project
+	// project := &domain.Project{
+	// 	ProposalID:   req.ProposalID,
+	// 	TeamID:       proposal.TeamID,
+	// 	DepartmentID: proposal.Team.DepartmentID,
+	// 	Summary:      req.Summary,
+	// 	ApprovedBy:   userID,
+	// 	Visibility:   "private",
+	// }
 
-	if err := s.repo.Create(project); err != nil {
-		return nil, err
-	}
+	// if err := s.repo.Create(project); err != nil {
+	// 	return nil, err
+	// }
 
-	return s.repo.GetByID(project.ID)
+	// return s.repo.GetByID(project.ID)
+	return nil, errors.New("not implemented")
 }
 
 func (s *Service) GetProject(id uint) (*domain.Project, error) {

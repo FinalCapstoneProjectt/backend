@@ -505,6 +505,7 @@ const docTemplate = `{
         },
         "/auth/login": {
             "post": {
+                "description": "Authenticates a user and returns a JWT token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -530,7 +531,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/auth.LoginResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -555,6 +568,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Returns the profile of the currently logged-in user.",
                 "produces": [
                     "application/json"
                 ],
@@ -566,7 +580,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/domain.User"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.User"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {
@@ -585,6 +611,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Invalidates old token (optional) and issues a new one.",
                 "consumes": [
                     "application/json"
                 ],
@@ -599,8 +626,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "401": {
@@ -614,6 +640,7 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
+                "description": "Register a new account. Role must be: student, advisor, admin, or public.",
                 "consumes": [
                     "application/json"
                 ],
@@ -639,7 +666,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/domain.User"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.User"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -1153,6 +1192,335 @@ const docTemplate = `{
                 }
             }
         },
+        "/projects": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all projects with optional filters",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "List all projects",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by visibility (private, public)",
+                        "name": "visibility",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by department ID",
+                        "name": "department_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by team ID",
+                        "name": "team_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.Project"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Convert an approved proposal into a formal project",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Create project from approved proposal",
+                "parameters": [
+                    {
+                        "description": "Project details",
+                        "name": "project",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/projects.CreateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Project"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve specific project details",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Get project by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Project"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update project summary and keywords",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Update project details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated project details",
+                        "name": "project",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/projects.UpdateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Project"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/publish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Make project visible to public users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Publish project to public archive",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/proposals": {
             "get": {
                 "security": [
@@ -1160,24 +1528,24 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get all proposals (filtered by status, department)",
+                "description": "Retrieve proposals with optional filters",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Proposals"
                 ],
-                "summary": "List proposals",
+                "summary": "Get proposals",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by status (draft, submitted, under_review, etc.)",
+                        "description": "Proposal status",
                         "name": "status",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Filter by department ID",
+                        "description": "Department ID",
                         "name": "department_id",
                         "in": "query"
                     }
@@ -1204,12 +1572,6 @@ const docTemplate = `{
                             ]
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -1224,7 +1586,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Student creates a new proposal in draft state",
+                "description": "Creates a new proposal ID with version 1. Team is optional at this stage.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1234,7 +1596,7 @@ const docTemplate = `{
                 "tags": [
                     "Proposals"
                 ],
-                "summary": "Create a new proposal (draft)",
+                "summary": "Create a new proposal draft",
                 "parameters": [
                     {
                         "description": "Proposal details",
@@ -1242,7 +1604,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/proposals.CreateProposalRequest"
+                            "$ref": "#/definitions/proposals.SaveProposalRequest"
                         }
                     }
                 ],
@@ -1264,30 +1626,6 @@ const docTemplate = `{
                                 }
                             ]
                         }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
                     }
                 }
             }
@@ -1299,7 +1637,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieve proposal details with versions and feedback",
+                "description": "Retrieve a specific proposal by its ID",
                 "produces": [
                     "application/json"
                 ],
@@ -1355,20 +1693,76 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Delete a proposal (only allowed for drafts)",
+                "description": "If Draft: updates existing. If Rejected/Revision: creates new version.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Proposals"
                 ],
-                "summary": "Delete a draft proposal",
+                "summary": "Update proposal or create revision",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Proposal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Proposal details",
+                        "name": "proposal",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/proposals.SaveProposalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Proposal"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a proposal if it is in Draft status",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Proposals"
+                ],
+                "summary": "Delete a proposal",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1387,24 +1781,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -1492,14 +1868,17 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Team leader submits proposal, locks it, and notifies teacher",
+                "description": "Locks proposal and sends to Admin. Requires Finalized Team.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Proposals"
                 ],
-                "summary": "Submit proposal for review",
+                "summary": "Submit proposal",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1507,6 +1886,15 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Team ID Confirmation",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/proposals.SubmitProposalRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -1514,30 +1902,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1550,14 +1914,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieve version history for a proposal",
+                "description": "Retrieve a specific proposal by its ID",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Proposals"
                 ],
-                "summary": "Get all versions of a proposal",
+                "summary": "Get proposal by ID",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1587,98 +1951,6 @@ const docTemplate = `{
                                     }
                                 }
                             ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Add a new version to a draft or revision-required proposal",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Proposals"
-                ],
-                "summary": "Create a new proposal version",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Proposal ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Version details",
-                        "name": "version",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/proposals.CreateVersionRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/domain.ProposalVersion"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
@@ -1866,6 +2138,55 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/teams/{id}/finalize": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Locks the team structure so a proposal can be created. Only Leader can do this.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Teams"
+                ],
+                "summary": "Finalize a team",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Team ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -2080,21 +2401,24 @@ const docTemplate = `{
                 }
             }
         },
-        "/teams/{id}/members/{memberId}": {
-            "delete": {
+        "/teams/{id}/transfer-leadership": {
+            "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Team leader removes a member from the team",
+                "description": "Assign a new leader. Old leader becomes a member.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Teams"
                 ],
-                "summary": "Remove a member from team",
+                "summary": "Transfer team leadership",
                 "parameters": [
                     {
                         "type": "integer",
@@ -2104,11 +2428,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "Member User ID",
-                        "name": "memberId",
-                        "in": "path",
-                        "required": true
+                        "description": "New Leader ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/teams.TransferLeadershipRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -2120,24 +2446,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -2497,7 +2805,9 @@ const docTemplate = `{
                     "minLength": 8
                 },
                 "role": {
-                    "type": "string"
+                    "description": "Swagger example",
+                    "type": "string",
+                    "example": "student"
                 },
                 "university_id": {
                     "type": "integer"
@@ -2611,61 +2921,69 @@ const docTemplate = `{
                 "FeedbackDecisionReject"
             ]
         },
-        "domain.Proposal": {
+        "domain.Project": {
             "type": "object",
             "properties": {
-                "approved_at": {
-                    "type": "string"
-                },
                 "approved_by": {
                     "type": "integer"
-                },
-                "approver": {
-                    "$ref": "#/definitions/domain.User"
                 },
                 "created_at": {
                     "type": "string"
                 },
-                "currentVersion": {
-                    "$ref": "#/definitions/domain.ProposalVersion"
-                },
-                "current_version_id": {
+                "department_id": {
                     "type": "integer"
-                },
-                "feedback": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Feedback"
-                    }
                 },
                 "id": {
                     "type": "integer"
                 },
-                "rejected_at": {
-                    "type": "string"
+                "proposal": {
+                    "$ref": "#/definitions/domain.Proposal"
                 },
-                "rejected_by": {
+                "proposal_id": {
                     "type": "integer"
                 },
-                "rejecter": {
-                    "$ref": "#/definitions/domain.User"
-                },
-                "rejection_reason": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/enums.ProposalStatus"
-                },
-                "submission_count": {
+                "share_count": {
                     "type": "integer"
                 },
-                "submitted_at": {
+                "summary": {
                     "type": "string"
                 },
                 "team": {
                     "$ref": "#/definitions/domain.Team"
                 },
                 "team_id": {
+                    "type": "integer"
+                },
+                "visibility": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Proposal": {
+            "type": "object",
+            "properties": {
+                "advisor_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/enums.ProposalStatus"
+                },
+                "team": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Team"
+                        }
+                    ]
+                },
+                "team_id": {
+                    "description": "⚠️ Changed to pointer to allow NULL",
                     "type": "integer"
                 },
                 "updated_at": {
@@ -2682,31 +3000,19 @@ const docTemplate = `{
         "domain.ProposalVersion": {
             "type": "object",
             "properties": {
+                "abstract": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
-                "created_by": {
-                    "type": "integer"
-                },
-                "creator": {
-                    "$ref": "#/definitions/domain.User"
-                },
-                "expected_outcomes": {
-                    "type": "string"
-                },
-                "file_hash": {
-                    "type": "string"
-                },
-                "file_size_bytes": {
-                    "type": "integer"
-                },
-                "file_url": {
+                "expected_timeline": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "is_approved_version": {
+                "is_approved": {
                     "type": "boolean"
                 },
                 "methodology": {
@@ -2715,8 +3021,8 @@ const docTemplate = `{
                 "objectives": {
                     "type": "string"
                 },
-                "proposal": {
-                    "$ref": "#/definitions/domain.Proposal"
+                "problem_statement": {
+                    "type": "string"
                 },
                 "proposal_id": {
                     "type": "integer"
@@ -2732,10 +3038,8 @@ const docTemplate = `{
         "domain.Team": {
             "type": "object",
             "properties": {
-                "advisor": {
-                    "$ref": "#/definitions/domain.User"
-                },
                 "advisor_id": {
+                    "description": "Admin assigns this later",
                     "type": "integer"
                 },
                 "created_at": {
@@ -2744,29 +3048,57 @@ const docTemplate = `{
                 "created_by": {
                     "type": "integer"
                 },
-                "creator": {
-                    "$ref": "#/definitions/domain.User"
-                },
-                "department": {
-                    "$ref": "#/definitions/domain.Department"
-                },
                 "department_id": {
                     "type": "integer"
                 },
                 "id": {
                     "type": "integer"
                 },
+                "is_finalized": {
+                    "description": "The \"Lock\"",
+                    "type": "boolean"
+                },
                 "members": {
+                    "description": "Relationships",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.User"
+                        "$ref": "#/definitions/domain.TeamMember"
                     }
                 },
                 "name": {
                     "type": "string"
                 },
-                "status": {
-                    "$ref": "#/definitions/enums.TeamStatus"
+                "proposals": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Proposal"
+                    }
+                }
+            }
+        },
+        "domain.TeamMember": {
+            "type": "object",
+            "properties": {
+                "invitation_status": {
+                    "$ref": "#/definitions/enums.InvitationStatus"
+                },
+                "role": {
+                    "description": "'leader', 'member'",
+                    "type": "string"
+                },
+                "team_id": {
+                    "type": "integer"
+                },
+                "user": {
+                    "description": "Preload User details for UI",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.User"
+                        }
+                    ]
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -2850,6 +3182,19 @@ const docTemplate = `{
                 }
             }
         },
+        "enums.InvitationStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "accepted",
+                "rejected"
+            ],
+            "x-enum-varnames": [
+                "InvitationStatusPending",
+                "InvitationStatusAccepted",
+                "InvitationStatusRejected"
+            ]
+        },
         "enums.ProposalStatus": {
             "type": "string",
             "enum": [
@@ -2873,28 +3218,15 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "student",
-                "teacher",
+                "advisor",
                 "admin",
                 "public"
             ],
             "x-enum-varnames": [
                 "RoleStudent",
-                "RoleTeacher",
+                "RoleAdvisor",
                 "RoleAdmin",
                 "RolePublic"
-            ]
-        },
-        "enums.TeamStatus": {
-            "type": "string",
-            "enum": [
-                "pending_advisor_approval",
-                "approved",
-                "rejected"
-            ],
-            "x-enum-varnames": [
-                "TeamStatusPendingAdvisorApproval",
-                "TeamStatusApproved",
-                "TeamStatusRejected"
             ]
         },
         "feedback.CreateFeedbackRequest": {
@@ -2921,39 +3253,52 @@ const docTemplate = `{
                 }
             }
         },
-        "proposals.CreateProposalRequest": {
+        "projects.CreateProjectRequest": {
             "type": "object",
             "required": [
-                "team_id"
+                "keywords",
+                "proposal_id",
+                "summary"
             ],
             "properties": {
-                "team_id": {
+                "keywords": {
+                    "type": "string"
+                },
+                "proposal_id": {
                     "type": "integer"
+                },
+                "summary": {
+                    "type": "string",
+                    "minLength": 50
                 }
             }
         },
-        "proposals.CreateVersionRequest": {
+        "projects.UpdateProjectRequest": {
             "type": "object",
             "required": [
-                "expected_outcomes",
-                "file_hash",
-                "file_size_bytes",
-                "file_url",
-                "methodology",
-                "objectives",
+                "keywords",
+                "summary"
+            ],
+            "properties": {
+                "keywords": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string",
+                    "minLength": 50
+                }
+            }
+        },
+        "proposals.SaveProposalRequest": {
+            "type": "object",
+            "required": [
                 "title"
             ],
             "properties": {
-                "expected_outcomes": {
+                "abstract": {
                     "type": "string"
                 },
-                "file_hash": {
-                    "type": "string"
-                },
-                "file_size_bytes": {
-                    "type": "integer"
-                },
-                "file_url": {
+                "expected_timeline": {
                     "type": "string"
                 },
                 "methodology": {
@@ -2962,8 +3307,26 @@ const docTemplate = `{
                 "objectives": {
                     "type": "string"
                 },
+                "problem_statement": {
+                    "type": "string"
+                },
+                "team_id": {
+                    "description": "Optional",
+                    "type": "integer"
+                },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "proposals.SubmitProposalRequest": {
+            "type": "object",
+            "required": [
+                "team_id"
+            ],
+            "properties": {
+                "team_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -2997,13 +3360,9 @@ const docTemplate = `{
         "teams.CreateTeamRequest": {
             "type": "object",
             "required": [
-                "department_id",
                 "name"
             ],
             "properties": {
-                "department_id": {
-                    "type": "integer"
-                },
                 "name": {
                     "type": "string"
                 }
@@ -3022,12 +3381,20 @@ const docTemplate = `{
         },
         "teams.RespondInvitationRequest": {
             "type": "object",
-            "required": [
-                "accept"
-            ],
             "properties": {
                 "accept": {
                     "type": "boolean"
+                }
+            }
+        },
+        "teams.TransferLeadershipRequest": {
+            "type": "object",
+            "required": [
+                "new_leader_id"
+            ],
+            "properties": {
+                "new_leader_id": {
+                    "type": "integer"
                 }
             }
         },

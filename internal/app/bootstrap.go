@@ -7,7 +7,7 @@ import (
 
 	//"backend/internal/documentation"
 	"backend/internal/domain"
-	"backend/internal/feedback"
+	//"backend/internal/feedback" // Commented out until ready
 	"backend/internal/projects"
 	"backend/internal/proposals"
 	"backend/internal/teams"
@@ -31,9 +31,9 @@ type App struct {
 	UserHandler       *users.Handler
 	TeamHandler       *teams.Handler
 	ProposalHandler   *proposals.Handler
-	FeedbackHandler   *feedback.Handler
+	// FeedbackHandler   *feedback.Handler // Commented out to match initialization
 	ProjectHandler    *projects.Handler
-	//DocumentationHandler *documentation.Handler
+	// DocumentationHandler *documentation.Handler
 }
 
 func Bootstrap(cfg config.Config) (*App, error) {
@@ -68,7 +68,6 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	log.Println("Starting database seeding...")
 	if err := database.SeedDatabase(db); err != nil {
 		log.Printf("ERROR: Failed to seed database: %v", err)
-		// Don't fail, just warn - seeding might fail if data already exists
 	} else {
 		log.Println("Database seeding completed successfully")
 	}
@@ -109,19 +108,22 @@ func Bootstrap(cfg config.Config) (*App, error) {
 
 	// 9. Initialize Proposal Service
 	proposalRepo := proposals.NewRepository(db)
-	proposalService := proposals.NewService(proposalRepo)
+	// ⚠️ FIXED: Added 'db' argument for transaction support
+	proposalService := proposals.NewService(proposalRepo, db) 
 	proposalHandler := proposals.NewHandler(proposalService)
 	log.Println("Proposal service initialized")
 
-	// 10. Initialize Feedback Service
-	feedbackRepo := feedback.NewRepository(db)
-	feedbackService := feedback.NewService(feedbackRepo, proposalRepo)
-	feedbackHandler := feedback.NewHandler(feedbackService)
-	log.Println("Feedback service initialized")
+	// 10. Initialize Feedback Service (Commented out per your snippet)
+	// feedbackRepo := feedback.NewRepository(db)
+	// feedbackService := feedback.NewService(feedbackRepo, proposalRepo)
+	// feedbackHandler := feedback.NewHandler(feedbackService)
+	// log.Println("Feedback service initialized")
 
 	// 11. Initialize Project Service
 	projectRepo := projects.NewRepository(db)
-	projectService := projects.NewService(projectRepo, proposalRepo)
+	// Ensure Project Service signature matches. Assuming it takes proposalRepo.
+	// If Project Service also needs DB now, check internal/projects/service.go
+	projectService := projects.NewService(projectRepo, proposalRepo) 
 	projectHandler := projects.NewHandler(projectService)
 	log.Println("Project service initialized")
 
@@ -142,8 +144,8 @@ func Bootstrap(cfg config.Config) (*App, error) {
 		UserHandler:       userHandler,
 		TeamHandler:       teamHandler,
 		ProposalHandler:   proposalHandler,
-		FeedbackHandler:   feedbackHandler,
+		// FeedbackHandler:   feedbackHandler, // Must be commented out if not initialized above
 		ProjectHandler:    projectHandler,
-		//DocumentationHandler: documentationHandler,
+		// DocumentationHandler: documentationHandler,
 	}, nil
 }

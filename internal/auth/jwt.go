@@ -16,6 +16,7 @@ type TokenClaims struct {
 	Email        string     `json:"email"`
 	Role         enums.Role `json:"role"`
 	DepartmentID uint       `json:"department_id"`
+	UniversityID uint       `json:"university_id"` 
 	jwt.RegisteredClaims
 }
 
@@ -28,6 +29,7 @@ func GenerateToken(user *domain.User, cfg config.Config) (string, time.Time, err
 		Email:        user.Email,
 		Role:         user.Role,
 		DepartmentID: user.DepartmentID,
+		UniversityID: user.UniversityID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

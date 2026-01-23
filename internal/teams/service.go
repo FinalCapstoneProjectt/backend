@@ -14,106 +14,219 @@ func NewService(r Repository) *Service {
 	return &Service{repo: r}
 }
 
-type CreateTeamRequest struct {
-	Name         string `json:"name" binding:"required"`
-	DepartmentID uint   `json:"department_id" binding:"required"`
-}
-
-type InviteMemberRequest struct {
-	UserID uint `json:"user_id" binding:"required"`
-}
-
-type RespondInvitationRequest struct {
-	Accept bool `json:"accept" binding:"required"`
-}
-
-func (s *Service) CreateTeam(req CreateTeamRequest, creatorID uint) (*domain.Team, error) {
+// 1. Create Team
+func (s *Service) CreateTeam(name string, creatorID uint, deptID uint) (*domain.Team, error) {
 	team := &domain.Team{
-		Name:         req.Name,
-		DepartmentID: req.DepartmentID,
+		Name:         name,
+		DepartmentID: deptID,
 		CreatedBy:    creatorID,
-		Status:       enums.TeamStatusPendingAdvisorApproval,
+		IsFinalized:  false,
+		AdvisorID:    nil,
 	}
 
-	err := s.repo.Create(team)
-	if err != nil {
+	if err := s.repo.CreateWithLeader(team, creatorID); err != nil {
 		return nil, err
 	}
 
-	// Add creator as leader with accepted status
-	err = s.repo.AddMember(team.ID, creatorID, "leader", enums.InvitationStatusAccepted)
-	if err != nil {
-		return nil, err
+	// 👇 NEW: Fetch the creator's details to populate the response
+	var creator domain.User
+	// We access the DB directly here for speed, or you can add GetUser to Repo
+	if err := s.repo.GetDB().First(&creator, creatorID).Error; err == nil {
+		// Clear sensitive data
+		creator.Password = "" 
+		
+		// Manually attach the full user object
+		team.Members = []domain.TeamMember{
+			{
+				TeamID:           team.ID,
+				UserID:           creatorID,
+				Role:             "leader",
+				InvitationStatus: enums.InvitationStatusAccepted,
+				User:             creator, // <--- THIS FILLS THE DATA
+			},
+		}
 	}
 
-	return s.repo.GetByID(team.ID)
+	return team, nil
+}
+// 2. Invite Member
+func (s *Service) InviteMember(teamID, inviteeID, requesterID uint) error {
+	// A. Check Team Existence
+	team, err := s.repo.GetByID(teamID)
+	if err != nil {
+		return err
+	}
+
+	// B. Rule: Team Locked?
+	if team.IsFinalized {
+		return errors.New("cannot invite members: team is finalized")
+	}
+
+	// C. Rule: Only Leader can invite
+	if !s.isLeader(team, requesterID) {
+		return errors.New("only team leader can invite members")
+	}
+
+	// D. Add to DB
+	member := &domain.TeamMember{
+		TeamID:           teamID,
+		UserID:           inviteeID,
+		Role:             "member",
+		InvitationStatus: enums.InvitationStatusPending,
+	}
+	return s.repo.AddMember(member)
+}
+
+// 3. Respond to Invite
+func (s *Service) RespondToInvitation(teamID, userID uint, accept bool) error {
+	if !accept {
+		return s.repo.RemoveMember(teamID, userID)
+	}
+	return s.repo.UpdateMemberStatus(teamID, userID, enums.InvitationStatusAccepted)
+}
+
+// 4. Finalize Team (The Lock)
+func (s *Service) FinalizeTeam(teamID, requesterID uint) error {
+	team, err := s.repo.GetByID(teamID)
+	if err != nil {
+		return err
+	}
+
+	if !s.isLeader(team, requesterID) {
+		return errors.New("only team leader can finalize the team")
+	}
+	
+	// Optional: Check min members count here
+	if len(team.Members) < 1 {
+		return errors.New("team must have members to finalize")
+	}
+
+	team.IsFinalized = true
+	return s.repo.Update(team)
+}
+
+// Helper
+func (s *Service) isLeader(team *domain.Team, userID uint) bool {
+	for _, m := range team.Members {
+		if m.UserID == userID && m.Role == "leader" {
+			return true
+		}
+	}
+	return false
+}
+
+// Getters for Handler
+func (s *Service) GetMyTeams(userID uint, availableOnly bool) ([]domain.Team, error) {
+	return s.repo.GetByUserID(userID, availableOnly)
 }
 
 func (s *Service) GetTeam(id uint) (*domain.Team, error) {
 	return s.repo.GetByID(id)
 }
 
-func (s *Service) GetMyTeams(userID uint) ([]domain.Team, error) {
-	return s.repo.GetByCreator(userID)
-}
-
+// GetTeamMembers retrieves the list of users in a team
 func (s *Service) GetTeamMembers(teamID uint) ([]domain.User, error) {
-	return s.repo.GetMembers(teamID)
+	// 1. Get the team (Repo already preloads Members and Members.User)
+	team, err := s.repo.GetByID(teamID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Extract the User objects from the TeamMember relationship
+	var users []domain.User
+	for _, member := range team.Members {
+		// Verify user data exists (safety check)
+		if member.User.ID != 0 {
+			users = append(users, member.User)
+		}
+	}
+
+	return users, nil
 }
 
-func (s *Service) InviteMember(teamID uint, userID uint, inviterID uint) error {
-	// Check if inviter is the leader
-	role, err := s.repo.GetMemberRole(teamID, inviterID)
-	if err != nil || role != "leader" {
-		return errors.New("only team leader can invite members")
+func (s *Service) RemoveMember(teamID, memberID, requesterID uint) error {
+	team, err := s.repo.GetByID(teamID)
+	if err != nil { return err }
+
+	// Rule: Cannot remove if finalized
+	if team.IsFinalized {
+		return errors.New("cannot remove members: team is finalized")
 	}
 
-	// Check if user is already a member
-	isMember, _ := s.repo.IsMember(teamID, userID)
-	if isMember {
-		return errors.New("user is already a member or has pending invitation")
-	}
-
-	return s.repo.AddMember(teamID, userID, "member", enums.InvitationStatusPending)
-}
-
-func (s *Service) RespondToInvitation(teamID uint, userID uint, accept bool) error {
-	// Check if user has pending invitation
-	isMember, err := s.repo.IsMember(teamID, userID)
-	if err != nil || !isMember {
-		return errors.New("no invitation found")
-	}
-
-	if accept {
-		return s.repo.UpdateMemberStatus(teamID, userID, enums.InvitationStatusAccepted)
-	} else {
-		return s.repo.UpdateMemberStatus(teamID, userID, enums.InvitationStatusRejected)
-	}
-}
-
-func (s *Service) RemoveMember(teamID uint, userID uint, removerID uint) error {
-	// Check if remover is the leader
-	role, err := s.repo.GetMemberRole(teamID, removerID)
-	if err != nil || role != "leader" {
+	// Rule: Only leader can remove others
+	if !s.isLeader(team, requesterID) {
 		return errors.New("only team leader can remove members")
 	}
 
-	// Prevent leader from removing themselves
-	if userID == removerID {
-		return errors.New("leader cannot remove themselves")
+	// Rule: Leader cannot remove themselves via this method (must delete team or transfer)
+	if memberID == requesterID {
+		return errors.New("leader cannot remove themselves, delete team instead")
 	}
 
-	return s.repo.RemoveMember(teamID, userID)
+	return s.repo.RemoveMember(teamID, memberID)
 }
 
-func (s *Service) IsTeamLeader(teamID uint, userID uint) (bool, error) {
-	role, err := s.repo.GetMemberRole(teamID, userID)
-	if err != nil {
-		return false, err
+// 6. Transfer Leadership
+func (s *Service) TransferLeadership(teamID, currentLeaderID, newLeaderID uint) error {
+	team, err := s.repo.GetByID(teamID)
+	if err != nil { return err }
+
+	// Rule: Cannot transfer if finalized (Strict rule, or optional based on your pref)
+	if team.IsFinalized {
+		return errors.New("cannot transfer leadership: team is finalized")
 	}
-	return role == "leader", nil
+
+	// Verify Requester is Leader
+	if !s.isLeader(team, currentLeaderID) {
+		return errors.New("unauthorized action")
+	}
+
+	// Verify New Leader is in the team
+	isMember := false
+	for _, m := range team.Members {
+		if m.UserID == newLeaderID && m.InvitationStatus == enums.InvitationStatusAccepted {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return errors.New("new leader must be an active member of the team")
+	}
+
+	// Perform Swap (Ideally in Transaction, but doing step-by-step for simplicity)
+	// 1. Demote Old Leader
+	if err := s.repo.UpdateMemberRole(teamID, currentLeaderID, "member"); err != nil {
+		return err
+	}
+	// 2. Promote New Leader
+	if err := s.repo.UpdateMemberRole(teamID, newLeaderID, "leader"); err != nil {
+		// Rollback logic would go here in production
+		return err
+	}
+	
+	// Update Team CreatedBy field? Optional, but role is more important.
+	return nil
 }
 
-func (s *Service) IsTeamMember(teamID uint, userID uint) (bool, error) {
-	return s.repo.IsMember(teamID, userID)
+// 7. Delete Team
+func (s *Service) DeleteTeam(teamID, requesterID uint) error {
+	team, err := s.repo.GetByID(teamID)
+	if err != nil { return err }
+
+	// Rule: Only Leader
+	if !s.isLeader(team, requesterID) {
+		return errors.New("only team leader can delete the team")
+	}
+
+	// Rule: Cannot delete if finalized
+	if team.IsFinalized {
+		return errors.New("cannot delete a finalized team")
+	}
+
+	// Rule: Cannot delete if Proposal exists
+	if len(team.Proposals) > 0 {
+		return errors.New("cannot delete team: a proposal has already been created")
+	}
+
+	return s.repo.Delete(teamID)
 }

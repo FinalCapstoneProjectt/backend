@@ -4,6 +4,7 @@ import (
 	"backend/pkg/response"
 	"net/http"
 	"strconv"
+    "backend/internal/auth" // Ensure this is imported for TokenClaims
 
 	"github.com/gin-gonic/gin"
 )
@@ -268,4 +269,33 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	}
 
 	response.JSON(c, http.StatusOK, "User deleted successfully", nil)
+}
+
+// GetPeers godoc
+// @Summary Get students in same department
+// @Description Used for populating invite dropdowns
+// @Tags Users
+// @Produce json
+// @Security BearerAuth
+// @Router /users/peers [get]
+func (h *Handler) GetPeers(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+	userClaims := claims.(*auth.TokenClaims)
+
+	// 👇 FIXED: Use dynamic UniversityID from token
+	users, err := h.service.GetPeers(userClaims.DepartmentID, userClaims.UniversityID, userClaims.UserID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to fetch peers", err.Error())
+		return
+	}
+	
+	for i := range users {
+		users[i].Password = ""
+	}
+
+	response.Success(c, users)
 }

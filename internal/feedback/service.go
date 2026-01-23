@@ -32,66 +32,68 @@ type CreateFeedbackRequest struct {
 }
 
 func (s *Service) CreateFeedback(req CreateFeedbackRequest, reviewerID uint) (*domain.Feedback, error) {
-	// 1. Get proposal to validate
-	proposal, err := s.proposalRepo.GetByID(req.ProposalID)
-	if err != nil {
-		return nil, err
-	}
+		// // 1. Get proposal to validate
+		// proposal, err := s.proposalRepo.GetByID(req.ProposalID)
+		// if err != nil {
+		// 	return nil, err
+		// }
 
-	// 2. Validate proposal is in reviewable state
-	if proposal.Status != enums.ProposalStatusSubmitted && proposal.Status != enums.ProposalStatusUnderReview {
-		return nil, errors.New("proposal is not in a reviewable state")
-	}
+		// // 2. Validate proposal is in reviewable state
+		// if proposal.Status != enums.ProposalStatusSubmitted && proposal.Status != enums.ProposalStatusUnderReview {
+		// 	return nil, errors.New("proposal is not in a reviewable state")
+		// }
 
-	// 3. Validate reviewer is the team's advisor
-	if proposal.Team.AdvisorID != reviewerID {
-		return nil, errors.New("only the assigned advisor can review this proposal")
-	}
+		// // 3. Validate reviewer is the team's advisor
+		// if proposal.Team.AdvisorID != reviewerID {
+		// 	return nil, errors.New("only the assigned advisor can review this proposal")
+		// }
 
-	// 4. Create feedback record
-	feedback := &domain.Feedback{
-		ProposalID:        req.ProposalID,
-		ProposalVersionID: req.ProposalVersionID,
-		ReviewerID:        reviewerID,
-		Decision:          req.Decision,
-		Comment:           req.Comment,
-	}
+		// // 4. Create feedback record
+		// feedback := &domain.Feedback{
+		// 	ProposalID:        req.ProposalID,
+		// 	ProposalVersionID: req.ProposalVersionID,
+		// 	ReviewerID:        reviewerID,
+		// 	Decision:          req.Decision,
+		// 	Comment:           req.Comment,
+		// }
 
-	if err := s.repo.Create(feedback); err != nil {
-		return nil, err
-	}
+		// if err := s.repo.Create(feedback); err != nil {
+		// 	return nil, err
+		// }
 
-	// 5. Update proposal status based on decision
-	var newStatus enums.ProposalStatus
-	switch req.Decision {
-	case domain.FeedbackDecisionApprove:
-		newStatus = enums.ProposalStatusApproved
-	case domain.FeedbackDecisionRevise:
-		newStatus = enums.ProposalStatusRevisionRequired
-	case domain.FeedbackDecisionReject:
-		newStatus = enums.ProposalStatusRejected
-	}
+		// // 5. Update proposal status based on decision
+		// var newStatus enums.ProposalStatus
+		// switch req.Decision {
+		// case domain.FeedbackDecisionApprove:
+		// 	newStatus = enums.ProposalStatusApproved
+		// case domain.FeedbackDecisionRevise:
+		// 	newStatus = enums.ProposalStatusRevisionRequired
+		// case domain.FeedbackDecisionReject:
+		// 	newStatus = enums.ProposalStatusRejected
+		// }
 
-	if err := s.proposalRepo.UpdateProposalStatus(req.ProposalID, newStatus); err != nil {
-		return nil, err
-	}
+		// if err := s.proposalRepo.UpdateProposalStatus(req.ProposalID, newStatus); err != nil {
+		// 	return nil, err
+		// }
 
-	return feedback, nil
+		// return feedback, nil
+	return nil, errors.New("not implemented")
 }
 
 func (s *Service) GetProposalFeedback(proposalID uint, userID uint) ([]domain.Feedback, error) {
-	// Get the proposal to check permissions
-	proposal, err := s.proposalRepo.GetByID(proposalID)
-	if err != nil {
-		return nil, err
-	}
+	// // Get the proposal to check permissions
+	// proposal, err := s.proposalRepo.GetByID(proposalID)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	// Check if user has access (team creator or advisor)
-	if proposal.Team.CreatedBy != userID && proposal.Team.AdvisorID != userID {
-		return nil, errors.New("you don't have permission to view this feedback")
-	}
+	// // Check if user has access (team creator or advisor)
+	// if proposal.Team.CreatedBy != userID && proposal.Team.AdvisorID != userID {
+	// 	return nil, errors.New("you don't have permission to view this feedback")
+	// }
 
-	return s.repo.GetByProposalID(proposalID)
+	// return s.repo.GetByProposalID(proposalID)
+	return nil, errors.New("not implemented")
 }
 
 func (s *Service) GetPendingProposals(reviewerID uint) ([]domain.Proposal, error) {

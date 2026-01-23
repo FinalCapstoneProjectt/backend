@@ -4,10 +4,19 @@ type Role string
 
 const (
 	RoleStudent Role = "student"
-	RoleTeacher Role = "teacher"
+	RoleAdvisor Role = "advisor"
 	RoleAdmin   Role = "admin"
 	RolePublic  Role = "public"
 )
+
+// Helper to check validity
+func IsValidRole(r string) bool {
+	switch Role(r) {
+	case RoleStudent, RoleAdvisor, RoleAdmin, RolePublic:
+		return true
+	}
+	return false
+}
 
 type ProposalStatus string
 

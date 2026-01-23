@@ -3,6 +3,7 @@ package proposals
 import (
 	"backend/internal/auth"
 	"backend/pkg/response"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -17,63 +18,146 @@ func NewHandler(s *Service) *Handler {
 	return &Handler{service: s}
 }
 
+// DTOs
+type SaveProposalRequest struct {
+	TeamID           *uint  `json:"team_id"` // Optional
+	Title            string `json:"title" binding:"required"`
+	Abstract         string `json:"abstract"`
+	ProblemStatement string `json:"problem_statement"`
+	Objectives       string `json:"objectives"`
+	Methodology      string `json:"methodology"`
+	Timeline         string `json:"expected_timeline"`
+	ExpectedOutcomes string `json:"expected_outcomes"`
+}
+
+type SubmitProposalRequest struct {
+	TeamID uint `json:"team_id" binding:"required"`
+}
+
 // CreateProposal godoc
-// @Summary Create a new proposal (draft)
-// @Description Student creates a new proposal in draft state
+// @Summary Create a new proposal draft
+// @Description Creates a new proposal ID with version 1. Team is optional at this stage.
 // @Tags Proposals
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param proposal body CreateProposalRequest true "Proposal details"
+// @Param proposal body SaveProposalRequest true "Proposal details"
 // @Success 201 {object} response.Response{data=domain.Proposal}
-// @Failure 400 {object} response.ErrorResponse
-// @Failure 401 {object} response.ErrorResponse
-// @Failure 409 {object} response.ErrorResponse
-// @Failure 500 {object} response.ErrorResponse
 // @Router /proposals [post]
 func (h *Handler) CreateProposal(c *gin.Context) {
-	var req CreateProposalRequest
+	claims := getClaims(c)
+	if claims == nil { return }
+
+	var req SaveProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
 		return
 	}
 
-	proposal, err := h.service.CreateProposal(req)
+	result, err := h.service.CreateDraft(h.mapRequestToInput(req), claims.UserID)
 	if err != nil {
-		if err.Error() == "team already has a proposal" {
-			response.Error(c, http.StatusConflict, "Team already has a proposal", err.Error())
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "Failed to create proposal", err.Error())
+		response.Error(c, http.StatusInternalServerError, "Failed to create draft", err.Error())
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, "Proposal created successfully", proposal)
+	response.JSON(c, http.StatusCreated, "Draft created successfully", result)
 }
 
+// UpdateProposal godoc
+// @Summary Update proposal or create revision
+// @Description If Draft: updates existing. If Rejected/Revision: creates new version.
+// @Tags Proposals
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Param proposal body SaveProposalRequest true "Proposal details"
+// @Success 200 {object} response.Response{data=domain.Proposal}
+// @Router /proposals/{id} [put]
+func (h *Handler) UpdateProposal(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil { return }
+
+	proposalID := parseID(c)
+	if proposalID == 0 { return }
+
+	var req SaveProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+        // 👇 LOGGING ADDED
+        fmt.Println("❌ JSON BIND ERROR:", err)
+		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
+		return
+	}
+
+    // 👇 LOGGING ADDED
+    fmt.Printf("📥 HANDLER RECEIVED: TeamID=%v, Title=%s\n", req.TeamID, req.Title)
+    if req.TeamID != nil {
+        fmt.Printf("   -> TeamID Value: %d\n", *req.TeamID)
+    } else {
+        fmt.Println("   -> TeamID is NIL")
+    }
+
+	result, err := h.service.UpdateProposal(proposalID, h.mapRequestToInput(req), claims.UserID)
+	if err != nil {
+		// Differentiate error types (400 vs 500) if needed
+		response.Error(c, http.StatusBadRequest, "Failed to update proposal", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Proposal updated successfully", result)
+}
+
+// SubmitProposal godoc
+// @Summary Submit proposal
+// @Description Locks proposal and sends to Admin. Requires Finalized Team.
+// @Tags Proposals
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Param request body SubmitProposalRequest true "Team ID Confirmation"
+// @Success 200 {object} response.Response
+// @Router /proposals/{id}/submit [post]
+func (h *Handler) SubmitProposal(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil { return }
+
+	proposalID := parseID(c)
+	if proposalID == 0 { return }
+
+	var req SubmitProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
+		return
+	}
+
+	err := h.service.SubmitProposal(proposalID, req.TeamID, claims.UserID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Submission failed", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Proposal submitted successfully", nil)
+}
+
+// GET /proposals
 // GetProposals godoc
-// @Summary List proposals
-// @Description Get all proposals (filtered by status, department)
+// @Summary Get proposals
+// @Description Retrieve proposals with optional filters
 // @Tags Proposals
 // @Produce json
 // @Security BearerAuth
-// @Param status query string false "Filter by status (draft, submitted, under_review, etc.)"
-// @Param department_id query int false "Filter by department ID"
+// @Param status query string false "Proposal status"
+// @Param department_id query int false "Department ID"
 // @Success 200 {object} response.Response{data=[]domain.Proposal}
-// @Failure 401 {object} response.ErrorResponse
 // @Failure 500 {object} response.ErrorResponse
 // @Router /proposals [get]
 func (h *Handler) GetProposals(c *gin.Context) {
 	status := c.Query("status")
 	departmentIDStr := c.Query("department_id")
-
 	var departmentID uint
 	if departmentIDStr != "" {
-		id, err := strconv.ParseUint(departmentIDStr, 10, 32)
-		if err != nil {
-			response.Error(c, http.StatusBadRequest, "Invalid department ID", err.Error())
-			return
-		}
+		id, _ := strconv.ParseUint(departmentIDStr, 10, 32)
 		departmentID = uint(id)
 	}
 
@@ -88,7 +172,7 @@ func (h *Handler) GetProposals(c *gin.Context) {
 
 // GetProposal godoc
 // @Summary Get proposal by ID
-// @Description Retrieve proposal details with versions and feedback
+// @Description Retrieve a specific proposal by its ID
 // @Tags Proposals
 // @Produce json
 // @Security BearerAuth
@@ -99,13 +183,10 @@ func (h *Handler) GetProposals(c *gin.Context) {
 // @Failure 404 {object} response.ErrorResponse
 // @Router /proposals/{id} [get]
 func (h *Handler) GetProposal(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
-		return
-	}
+	id := parseID(c)
+	if id == 0 { return }
 
-	proposal, err := h.service.GetProposal(uint(id))
+	proposal, err := h.service.GetProposal(id)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, "Proposal not found", err.Error())
 		return
@@ -114,71 +195,21 @@ func (h *Handler) GetProposal(c *gin.Context) {
 	response.Success(c, proposal)
 }
 
-// CreateVersion godoc
-// @Summary Create a new proposal version
-// @Description Add a new version to a draft or revision-required proposal
-// @Tags Proposals
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path int true "Proposal ID"
-// @Param version body CreateVersionRequest true "Version details"
-// @Success 201 {object} response.Response{data=domain.ProposalVersion}
-// @Failure 400 {object} response.ErrorResponse
-// @Failure 401 {object} response.ErrorResponse
-// @Failure 403 {object} response.ErrorResponse
-// @Failure 500 {object} response.ErrorResponse
-// @Router /proposals/{id}/versions [post]
-func (h *Handler) CreateVersion(c *gin.Context) {
-	claims, exists := c.Get("claims")
-	if !exists {
-		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
-		return
-	}
-
-	userClaims := claims.(*auth.TokenClaims)
-
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
-		return
-	}
-
-	var req CreateVersionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
-		return
-	}
-
-	version, err := h.service.CreateVersion(uint(id), req, userClaims.UserID)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "Failed to create version", err.Error())
-		return
-	}
-
-	response.JSON(c, http.StatusCreated, "Version created successfully", version)
-}
-
-// GetVersions godoc
-// @Summary Get all versions of a proposal
-// @Description Retrieve version history for a proposal
+// GetProposal godoc
+// @Summary Get proposal by ID
+// @Description Retrieve a specific proposal by its ID
 // @Tags Proposals
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "Proposal ID"
 // @Success 200 {object} response.Response{data=[]domain.ProposalVersion}
-// @Failure 400 {object} response.ErrorResponse
-// @Failure 401 {object} response.ErrorResponse
 // @Failure 500 {object} response.ErrorResponse
 // @Router /proposals/{id}/versions [get]
 func (h *Handler) GetVersions(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
-		return
-	}
+	id := parseID(c)
+	if id == 0 { return }
 
-	versions, err := h.service.GetVersions(uint(id))
+	versions, err := h.service.GetVersions(id)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to fetch versions", err.Error())
 		return
@@ -187,60 +218,58 @@ func (h *Handler) GetVersions(c *gin.Context) {
 	response.Success(c, versions)
 }
 
-// SubmitProposal godoc
-// @Summary Submit proposal for review
-// @Description Team leader submits proposal, locks it, and notifies teacher
-// @Tags Proposals
-// @Produce json
-// @Security BearerAuth
-// @Param id path int true "Proposal ID"
-// @Success 200 {object} response.Response
-// @Failure 400 {object} response.ErrorResponse
-// @Failure 401 {object} response.ErrorResponse
-// @Failure 403 {object} response.ErrorResponse
-// @Failure 500 {object} response.ErrorResponse
-// @Router /proposals/{id}/submit [post]
-func (h *Handler) SubmitProposal(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
-		return
-	}
-
-	err = h.service.SubmitProposal(uint(id))
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "Failed to submit proposal", err.Error())
-		return
-	}
-
-	response.JSON(c, http.StatusOK, "Proposal submitted successfully", nil)
-}
-
 // DeleteProposal godoc
-// @Summary Delete a draft proposal
-// @Description Delete a proposal (only allowed for drafts)
+// @Summary Delete a proposal
+// @Description Deletes a proposal if it is in Draft status
 // @Tags Proposals
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "Proposal ID"
 // @Success 200 {object} response.Response
 // @Failure 400 {object} response.ErrorResponse
-// @Failure 401 {object} response.ErrorResponse
-// @Failure 403 {object} response.ErrorResponse
-// @Failure 500 {object} response.ErrorResponse
 // @Router /proposals/{id} [delete]
 func (h *Handler) DeleteProposal(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid proposal ID", err.Error())
-		return
-	}
+	id := parseID(c)
+	if id == 0 { return }
 
-	err = h.service.DeleteProposal(uint(id))
+	err := h.service.DeleteProposal(id)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "Failed to delete proposal", err.Error())
+		response.Error(c, http.StatusBadRequest, "Failed to delete proposal", err.Error())
 		return
 	}
 
 	response.JSON(c, http.StatusOK, "Proposal deleted successfully", nil)
+}
+
+// --- Helpers ---
+
+func (h *Handler) mapRequestToInput(req SaveProposalRequest) ProposalInput {
+	return ProposalInput{
+		TeamID:           req.TeamID,
+		Title:            req.Title,
+		Abstract:         req.Abstract,
+		ProblemStatement: req.ProblemStatement,
+		Objectives:       req.Objectives,
+		Methodology:      req.Methodology,
+		Timeline:         req.Timeline,
+		ExpectedOutcomes: req.ExpectedOutcomes,
+	}
+}
+
+func getClaims(c *gin.Context) *auth.TokenClaims {
+	claims, exists := c.Get("claims")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return nil
+	}
+	return claims.(*auth.TokenClaims)
+}
+
+func parseID(c *gin.Context) uint {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid ID", err.Error())
+		return 0
+	}
+	return uint(id)
 }

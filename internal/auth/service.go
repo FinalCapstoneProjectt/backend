@@ -36,7 +36,7 @@ type RegisterRequest struct {
 	Name         string `json:"name" binding:"required"`
 	Email        string `json:"email" binding:"required,email"`
 	Password     string `json:"password" binding:"required,min=8"`
-	Role         string `json:"role" binding:"required"`
+	Role         string `json:"role" binding:"required" example:"student"` // Swagger example
 	UniversityID uint   `json:"university_id" binding:"required"`
 	DepartmentID uint   `json:"department_id"`
 }
@@ -54,6 +54,12 @@ type LoginResponse struct {
 
 // Register creates a new user account
 func (s *service) Register(req RegisterRequest) (*domain.User, error) {
+	
+	// Strict Role validation
+	if !enums.IsValidRole(req.Role) {
+		return nil, errors.New("invalid role: must be 'student', 'advisor', 'admin', or 'public'")
+	}
+
 	// Check if user already exists
 	existingUser, err := s.repo.FindByEmail(req.Email)
 	if err == nil && existingUser != nil {

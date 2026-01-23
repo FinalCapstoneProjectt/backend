@@ -16,6 +16,21 @@ type Handler struct {
 func NewHandler(s *Service) *Handler {
 	return &Handler{service: s}
 }
+type CreateTeamRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+type InviteMemberRequest struct {
+	UserID uint `json:"user_id" binding:"required"`
+}
+
+type TransferLeadershipRequest struct {
+	NewLeaderID uint `json:"new_leader_id" binding:"required"`
+}
+
+type RespondInvitationRequest struct {
+	Accept bool `json:"accept"`
+}
 
 // CreateTeam godoc
 // @Summary Create a new team
@@ -31,27 +46,51 @@ func NewHandler(s *Service) *Handler {
 // @Failure 500 {object} response.ErrorResponse
 // @Router /teams [post]
 func (h *Handler) CreateTeam(c *gin.Context) {
-	claims, exists := c.Get("claims")
-	if !exists {
-		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
-		return
-	}
-
-	userClaims := claims.(*auth.TokenClaims)
+	claims := getClaims(c)
+	if claims == nil { return }
 
 	var req CreateTeamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
 		return
 	}
 
-	team, err := h.service.CreateTeam(req, userClaims.UserID)
+	// Pass DepartmentID from Claims!
+	team, err := h.service.CreateTeam(req.Name, claims.UserID, claims.DepartmentID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to create team", err.Error())
 		return
 	}
 
 	response.JSON(c, http.StatusCreated, "Team created successfully", team)
+}
+
+// FinalizeTeam godoc
+// @Summary Finalize a team
+// @Description Locks the team structure so a proposal can be created. Only Leader can do this.
+// @Tags Teams
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Team ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 401 {object} response.ErrorResponse
+// @Router /teams/{id}/finalize [post]
+func (h *Handler) FinalizeTeam(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil { return }
+
+	teamID := parseID(c)
+	if teamID == 0 { return }
+
+	err := h.service.FinalizeTeam(teamID, claims.UserID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Failed to finalize team", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Team finalized successfully", nil)
 }
 
 // GetTeams godoc
@@ -65,21 +104,19 @@ func (h *Handler) CreateTeam(c *gin.Context) {
 // @Failure 500 {object} response.ErrorResponse
 // @Router /teams [get]
 func (h *Handler) GetTeams(c *gin.Context) {
-	claims, exists := c.Get("claims")
-	if !exists {
-		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
-		return
-	}
+    claims := getClaims(c)
+    if claims == nil { return }
 
-	userClaims := claims.(*auth.TokenClaims)
+    // Check query param
+    availableOnly := c.Query("available") == "true"
 
-	teams, err := h.service.GetMyTeams(userClaims.UserID)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "Failed to fetch teams", err.Error())
-		return
-	}
+    teams, err := h.service.GetMyTeams(claims.UserID, availableOnly)
+    if err != nil {
+        response.Error(c, http.StatusInternalServerError, "Failed to fetch teams", err.Error())
+        return
+    }
 
-	response.Success(c, teams)
+    response.Success(c, teams)
 }
 
 // GetTeam godoc
@@ -236,50 +273,109 @@ func (h *Handler) RespondToInvitation(c *gin.Context) {
 	response.JSON(c, http.StatusOK, message, nil)
 }
 
-// RemoveMember godoc
-// @Summary Remove a member from team
-// @Description Team leader removes a member from the team
-// @Tags Teams
-// @Produce json
-// @Security BearerAuth
-// @Param id path int true "Team ID"
-// @Param memberId path int true "Member User ID"
-// @Success 200 {object} response.Response
-// @Failure 400 {object} response.ErrorResponse
-// @Failure 401 {object} response.ErrorResponse
-// @Failure 403 {object} response.ErrorResponse
-// @Failure 500 {object} response.ErrorResponse
-// @Router /teams/{id}/members/{memberId} [delete]
+// // RemoveMember godoc
+// // @Summary Remove a member from team
+// // @Description Team leader removes a member from the team
+// // @Tags Teams
+// // @Produce json
+// // @Security BearerAuth
+// // @Param id path int true "Team ID"
+// // @Param memberId path int true "Member User ID"
+// // @Success 200 {object} response.Response
+// // @Failure 400 {object} response.ErrorResponse
+// // @Failure 401 {object} response.ErrorResponse
+// // @Failure 403 {object} response.ErrorResponse
+// // @Failure 500 {object} response.ErrorResponse
+// // @Router /teams/{id}/members/{memberId} [delete]
 func (h *Handler) RemoveMember(c *gin.Context) {
-	claims, exists := c.Get("claims")
-	if !exists {
-		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
-		return
-	}
+	claims := getClaims(c)
+	if claims == nil { return }
 
-	userClaims := claims.(*auth.TokenClaims)
+	teamID := parseID(c)
+	if teamID == 0 { return }
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid team ID", err.Error())
-		return
-	}
-
-	memberID, err := strconv.ParseUint(c.Param("memberId"), 10, 32)
+	memberIDString := c.Param("memberId") // Ensure router uses :memberId
+	memberID, err := strconv.ParseUint(memberIDString, 10, 32)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "Invalid member ID", err.Error())
 		return
 	}
 
-	err = h.service.RemoveMember(uint(id), uint(memberID), userClaims.UserID)
+	err = h.service.RemoveMember(teamID, uint(memberID), claims.UserID)
 	if err != nil {
-		if err.Error() == "only team leader can remove members" {
-			response.Error(c, http.StatusForbidden, "Forbidden", err.Error())
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "Failed to remove member", err.Error())
+		response.Error(c, http.StatusBadRequest, "Failed to remove member", err.Error())
 		return
 	}
 
 	response.JSON(c, http.StatusOK, "Member removed successfully", nil)
+}
+
+// TransferLeadership godoc
+// @Summary Transfer team leadership
+// @Description Assign a new leader. Old leader becomes a member.
+// @Tags Teams
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Team ID"
+// @Param request body TransferLeadershipRequest true "New Leader ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Router /teams/{id}/transfer-leadership [post]
+func (h *Handler) TransferLeadership(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil { return }
+
+	teamID := parseID(c)
+	if teamID == 0 { return }
+
+	var req TransferLeadershipRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
+		return
+	}
+
+	err := h.service.TransferLeadership(teamID, claims.UserID, req.NewLeaderID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Failed to transfer leadership", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Leadership transferred successfully", nil)
+}
+
+// DeleteTeam (New)
+func (h *Handler) DeleteTeam(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil { return }
+
+	teamID := parseID(c)
+	if teamID == 0 { return }
+
+	err := h.service.DeleteTeam(teamID, claims.UserID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Failed to delete team", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Team deleted successfully", nil)
+}
+
+// Helpers
+func getClaims(c *gin.Context) *auth.TokenClaims {
+	claims, exists := c.Get("claims")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return nil
+	}
+	return claims.(*auth.TokenClaims)
+}
+
+func parseID(c *gin.Context) uint {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid ID", err.Error())
+		return 0
+	}
+	return uint(id)
 }

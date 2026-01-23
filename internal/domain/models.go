@@ -52,68 +52,67 @@ type User struct {
 }
 
 type Team struct {
-	ID           uint             `gorm:"primaryKey" json:"id"`
-	Name         string           `gorm:"not null" json:"name"`
-	DepartmentID uint             `json:"department_id"`
-	CreatedBy    uint             `json:"created_by"`
-	AdvisorID    uint             `json:"advisor_id"`
-	Status       enums.TeamStatus `gorm:"type:varchar(30);default:'pending_advisor_approval'" json:"status"`
-	CreatedAt    time.Time        `json:"created_at"`
-	Department   Department       `gorm:"foreignKey:DepartmentID"`
-	Creator      User             `gorm:"foreignKey:CreatedBy"`
-	Advisor      User             `gorm:"foreignKey:AdvisorID"`
-	Members      []User           `gorm:"many2many:team_members;" json:"members"`
+	ID           uint       `gorm:"primaryKey" json:"id"`
+	Name         string     `gorm:"not null" json:"name"`
+	DepartmentID uint       `json:"department_id"`
+	CreatedBy    uint       `json:"created_by"`
+	AdvisorID    *uint      `json:"advisor_id"` 
+	IsFinalized  bool       `gorm:"default:false" json:"is_finalized"`
+	CreatedAt    time.Time  `json:"created_at"`
+	
+	Department   *Department   `gorm:"foreignKey:DepartmentID" json:"department,omitempty"`
+	Creator      *User         `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
+	Advisor      *User         `gorm:"foreignKey:AdvisorID" json:"advisor,omitempty"`
+
+	Members      []TeamMember `gorm:"foreignKey:TeamID" json:"members"`
+	Proposals    []Proposal   `gorm:"foreignKey:TeamID" json:"proposals"`
 }
 
 type TeamMember struct {
-	TeamID           uint                   `gorm:"primaryKey"`
-	UserID           uint                   `gorm:"primaryKey"`
-	Role             string                 `gorm:"type:varchar(20);not null"` // leader, member
-	InvitationStatus enums.InvitationStatus `gorm:"type:varchar(20);default:'pending'"`
+	TeamID           uint                   `gorm:"primaryKey" json:"team_id"`
+	UserID           uint                   `gorm:"primaryKey" json:"user_id"`
+	Role             string                 `gorm:"type:varchar(20);default:'member'" json:"role"` // 'leader', 'member'
+	InvitationStatus enums.InvitationStatus `gorm:"type:varchar(20);default:'pending'" json:"invitation_status"`
+	
+	// Preload User details for UI
+	User User `gorm:"foreignKey:UserID" json:"user"`
 }
 
 type Proposal struct {
 	ID               uint                 `gorm:"primaryKey" json:"id"`
-	TeamID           uint                 `gorm:"uniqueIndex" json:"team_id"`
+	TeamID           *uint                `json:"team_id"` // ⚠️ Changed to pointer to allow NULL
+	AdvisorID        *uint                `json:"advisor_id"`
 	Status           enums.ProposalStatus `gorm:"type:varchar(30);default:'draft'" json:"status"`
-	CurrentVersionID *uint                `json:"current_version_id"`
-	SubmittedAt      *time.Time           `json:"submitted_at"`
-	SubmissionCount  int                  `gorm:"default:0" json:"submission_count"`
-	ApprovedAt       *time.Time           `json:"approved_at"`
-	ApprovedBy       *uint                `json:"approved_by"`
-	RejectedAt       *time.Time           `json:"rejected_at"`
-	RejectedBy       *uint                `json:"rejected_by"`
-	RejectionReason  string               `json:"rejection_reason"`
+	
+	// Relationships
+	Team             *Team                `gorm:"foreignKey:TeamID" json:"team,omitempty"`
+	Versions         []ProposalVersion    `gorm:"foreignKey:ProposalID" json:"versions"`
 	CreatedAt        time.Time            `json:"created_at"`
 	UpdatedAt        time.Time            `json:"updated_at"`
-	DeletedAt        *time.Time           `gorm:"index" json:"-"`
-	Team             Team                 `gorm:"foreignKey:TeamID"`
-	CurrentVersion   *ProposalVersion     `gorm:"foreignKey:CurrentVersionID"`
-	Versions         []ProposalVersion    `json:"versions"`
-	Feedback         []Feedback           `json:"feedback"`
-	Approver         *User                `gorm:"foreignKey:ApprovedBy"`
-	Rejecter         *User                `gorm:"foreignKey:RejectedBy"`
 }
 
+// Ensure ProposalVersion matches your DBML
 type ProposalVersion struct {
-	ID                uint      `gorm:"primaryKey" json:"id"`
-	ProposalID        uint      `gorm:"index" json:"proposal_id"`
-	Title             string    `gorm:"type:varchar(500);not null" json:"title"`
-	Objectives        string    `gorm:"type:text;not null" json:"objectives"`
-	Methodology       string    `gorm:"type:text;not null" json:"methodology"`
-	ExpectedOutcomes  string    `gorm:"type:text;not null" json:"expected_outcomes"`
-	FileURL           string    `gorm:"type:varchar(500);not null" json:"file_url"`
-	FileHash          string    `gorm:"type:varchar(64);not null" json:"file_hash"`
-	FileSizeBytes     int64     `gorm:"not null" json:"file_size_bytes"`
-	VersionNumber     int       `gorm:"not null" json:"version_number"`
-	IsApprovedVersion bool      `gorm:"default:false" json:"is_approved_version"`
-	CreatedBy         uint      `gorm:"not null" json:"created_by"`
-	IPAddress         string    `gorm:"type:inet" json:"-"`
-	UserAgent         string    `gorm:"type:text" json:"-"`
-	SessionID         string    `gorm:"type:varchar(255)" json:"-"`
-	CreatedAt         time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
-	Proposal          Proposal  `gorm:"foreignKey:ProposalID"`
-	Creator           User      `gorm:"foreignKey:CreatedBy"`
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	ProposalID       uint      `json:"proposal_id"`
+	Title            string    `json:"title"`
+	Abstract         string    `json:"abstract"`
+	ProblemStatement string    `json:"problem_statement"`
+	Objectives       string    `json:"objectives"`
+	Methodology      string    `json:"methodology"`
+	ExpectedTimeline string    `json:"expected_timeline"`
+	VersionNumber    int       `json:"version_number"`
+	ExpectedOutcomes string    `json:"expected_outcomes"`
+	FileURL 		*string    `json:"file_url"` //nullable
+	IsApproved       bool      `gorm:"default:false" json:"is_approved"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	FileHash      string       `gorm:"type:varchar(64)" json:"file_hash"` // Removed "not null"
+    FileSizeBytes int64        `json:"file_size_bytes"`   
+	CreatedBy        uint      `json:"created_by"`
+    
+    // Optional: Relationship
+    Creator          User      `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
 }
 
 type Feedback struct {
@@ -158,8 +157,8 @@ type Project struct {
 type ProjectDocumentation struct {
 	ID            uint      `gorm:"primaryKey" json:"id"`
 	ProjectID     uint      `json:"project_id"`
-	DocumentType  string    `gorm:"type:varchar(30)" json:"document_type"` // final_report, etc.
-	FileURL       string    `json:"file_url"`
+	DocumentType  string    `gorm:"type:varchar(30)" json:"document_type"`
+	URL           string    `gorm:"column:url" json:"url"` 
 	Status        string    `gorm:"type:varchar(20);default:'pending'" json:"status"`
 	ReviewComment string    `json:"review_comment"`
 	ReviewedBy    uint      `json:"reviewed_by"`
@@ -203,12 +202,12 @@ type AuditLog struct {
 	ActorEmail string    `gorm:"type:varchar(255)" json:"actor_email"`
 	OldState   string    `gorm:"type:jsonb" json:"old_state"`
 	NewState   string    `gorm:"type:jsonb" json:"new_state"`
-	Changes    string    `gorm:"type:jsonb" json:"changes"`
+	Changes    string   `gorm:"type:text" json:"changes"` 
 	IPAddress  string    `gorm:"type:inet" json:"ip_address"`
 	UserAgent  string    `gorm:"type:text" json:"user_agent"`
 	RequestID  string    `gorm:"type:varchar(255)" json:"request_id"`
 	SessionID  string    `gorm:"type:varchar(255);index" json:"session_id"`
 	Timestamp  time.Time `gorm:"not null;default:CURRENT_TIMESTAMP;index" json:"timestamp"`
-	Metadata   string    `gorm:"type:jsonb" json:"metadata"`
+	Metadata   string    `gorm:"type:text" json:"metadata"`
 	Actor      *User     `gorm:"foreignKey:ActorID"`
 }
