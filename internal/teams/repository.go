@@ -78,6 +78,7 @@ func (r *repository) GetByUserID(userID uint, availableOnly bool) ([]domain.Team
 	var teams []domain.Team
 	
 	query := r.db.Preload("Department").
+		Preload("Members").
 		Preload("Members.User").
 		Preload("Creator").
         Preload("Proposals"). // 👈 Need this to check count

@@ -2,6 +2,7 @@ package projects
 
 import (
 	"backend/internal/domain"
+	"backend/pkg/enums"
 	"errors"
 )
 
@@ -22,14 +23,14 @@ func NewService(repo Repository, proposalRepo ProposalRepository) *Service {
 }
 
 type CreateProjectRequest struct {
-	ProposalID uint   `json:"proposal_id" binding:"required"`
-	Summary    string `json:"summary" binding:"required,min=50"`
-	Keywords   string `json:"keywords" binding:"required"`
+	ProposalID uint   `json:"proposal_id"`
+	Summary    string `json:"summary"`
+	Keywords   string `json:"keywords"`
 }
 
 type UpdateProjectRequest struct {
-	Summary  string `json:"summary" binding:"required,min=50"`
-	Keywords string `json:"keywords" binding:"required"`
+	Summary  string `json:"summary"`
+	Visibility string `json:"visibility"`
 }
 
 func (s *Service) CreateProject(req CreateProjectRequest, userID uint) (*domain.Project, error) {
@@ -83,39 +84,47 @@ func (s *Service) GetProjects(filters map[string]interface{}) ([]domain.Project,
 	return s.repo.GetAll(filters)
 }
 
-func (s *Service) UpdateProject(id uint, req UpdateProjectRequest, userID uint) (*domain.Project, error) {
+func (s *Service) UpdateProject(id uint, req UpdateProjectRequest, userID uint, role enums.Role) (*domain.Project, error) {
 	project, err := s.repo.GetByID(id)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("project not found")
 	}
 
-	// Check if user is team creator
-	if project.Team.CreatedBy != userID {
-		return nil, errors.New("only team creator can update project")
+	// Permission Logic (Allow Creator, Advisor, or Admin)
+	isCreator := project.Team.CreatedBy == userID
+	isAdvisor := project.Proposal.AdvisorID != nil && *project.Proposal.AdvisorID == userID
+	isAdmin := role == enums.RoleAdmin
+
+	if !isCreator && !isAdvisor && !isAdmin {
+		return nil, errors.New("unauthorized: you cannot update this project")
 	}
 
-	project.Summary = req.Summary
+	// 🚀 Apply updates ONLY if they are provided in the JSON
+	if req.Summary != "" {
+		project.Summary = req.Summary
+	}
+	if req.Visibility != "" {
+		project.Visibility = req.Visibility
+	}
 
 	if err := s.repo.Update(project); err != nil {
 		return nil, err
 	}
 
-	return s.repo.GetByID(id)
+	return project, nil
 }
 
-func (s *Service) PublishProject(id uint, userID uint) error {
-	project, err := s.repo.GetByID(id)
-	if err != nil {
-		return err
-	}
+func (s *Service) PublishProject(id uint, userID uint, role enums.Role) error {
+		project, err := s.repo.GetByID(id)
+	if err != nil { return err }
 
-	// Check if user is team creator or admin
-	if project.Team.CreatedBy != userID {
-		return errors.New("only team creator can publish project")
-	}
+	// 🔒 FIX: Allow Creator OR Advisor OR Admin
+	isCreator := project.Team.CreatedBy == userID
+	isAdvisor := project.Proposal.AdvisorID != nil && *project.Proposal.AdvisorID == userID
+	isAdmin := role == enums.RoleAdmin
 
-	if project.Visibility == "public" {
-		return errors.New("project is already public")
+	if !isCreator && !isAdvisor && !isAdmin {
+		return errors.New("unauthorized: only team leader or assigned advisor can publish")
 	}
 
 	return s.repo.UpdateVisibility(id, "public")

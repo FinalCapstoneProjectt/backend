@@ -16,11 +16,21 @@ type Repository interface {
 	UpdateStatus(id uint, isActive bool) error
 	AssignDepartment(userID uint, departmentID uint) error
 	Delete(id uint) error
+	GetDB() *gorm.DB 
+
 	FindPeers(departmentID uint, universityID uint, excludeUserID uint) ([]domain.User, error)
+	// NEW METHODS FOR ADMIN
+    GetAdvisorsByDepartment(departmentID uint) ([]domain.User, error)
+    // GetAdvisorWorkload returns a map of AdvisorID -> Count
+    GetAdvisorWorkload(departmentID uint) (map[uint]int64, error)
 }
 
 type repository struct {
 	db *gorm.DB
+}
+
+func (r *repository) GetDB() *gorm.DB {
+    return r.db
 }
 
 func NewRepository(db *gorm.DB) Repository {
@@ -51,7 +61,15 @@ func (r *repository) GetByEmail(email string) (*domain.User, error) {
 
 func (r *repository) GetAll(filters map[string]interface{}) ([]domain.User, error) {
 	var users []domain.User
-	query := r.db.Preload("University").Preload("Department")
+	query := r.db.
+        Preload("Team").
+        Preload("Team.Members").        // Load Join Table
+        Preload("Team.Members.User").   // 👈 CRITICAL: Load User Details
+        Preload("Team.Department").
+        Preload("Versions", func(db *gorm.DB) *gorm.DB {
+            return db.Order("version_number DESC")
+        })
+
 
 	if role, ok := filters["role"]; ok {
 		query = query.Where("role = ?", role)
@@ -97,4 +115,32 @@ func (r *repository) FindPeers(departmentID uint, universityID uint, excludeUser
 		universityID, departmentID, enums.RoleStudent, excludeUserID).
 		Find(&users).Error
 	return users, err
+}
+
+func (r *repository) GetAdvisorsByDepartment(departmentID uint) ([]domain.User, error) {
+    var advisors []domain.User
+    err := r.db.Where("department_id = ? AND role = ?", departmentID, enums.RoleAdvisor).Find(&advisors).Error
+    return advisors, err
+}
+
+func (r *repository) GetAdvisorWorkload(departmentID uint) (map[uint]int64, error) {
+    type Result struct {
+        AdvisorID uint
+        Count     int64
+    }
+    var results []Result
+    
+    // 👇 FIX: Use 'proposals.advisor_id' explicitly
+    err := r.db.Table("proposals").
+        Select("proposals.advisor_id, count(*) as count"). // Fixed ambiguity
+        Joins("JOIN teams ON teams.id = proposals.team_id").
+        Where("teams.department_id = ? AND proposals.advisor_id IS NOT NULL", departmentID).
+        Group("proposals.advisor_id"). // Fixed ambiguity
+        Scan(&results).Error
+        
+    workload := make(map[uint]int64)
+    for _, res := range results {
+        workload[res.AdvisorID] = res.Count
+    }
+    return workload, err
 }

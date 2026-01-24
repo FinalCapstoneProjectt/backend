@@ -11,6 +11,7 @@ type Repository interface {
 	GetByProposalID(proposalID uint) ([]domain.Feedback, error)
 	GetByID(id uint) (*domain.Feedback, error)
 	GetPendingProposalsForReviewer(reviewerID uint) ([]domain.Proposal, error)
+	GetDB() *gorm.DB
 }
 
 type repository struct {
@@ -19,6 +20,9 @@ type repository struct {
 
 func NewRepository(db *gorm.DB) Repository {
 	return &repository{db: db}
+}
+func (r *repository) GetDB() *gorm.DB {
+	return r.db
 }
 
 func (r *repository) Create(feedback *domain.Feedback) error {
@@ -46,19 +50,17 @@ func (r *repository) GetByID(id uint) (*domain.Feedback, error) {
 	return &feedback, nil
 }
 
-func (r *repository) GetPendingProposalsForReviewer(reviewerID uint) ([]domain.Proposal, error) {
+func (r *repository) GetPendingProposalsForReviewer(advisorID uint) ([]domain.Proposal, error) {
 	var proposals []domain.Proposal
-
-	// Get proposals where:
-	// 1. Status is submitted or under_review
-	// 2. Team's advisor is the reviewer
-	err := r.db.Preload("Team").
-		Preload("Team.Creator").
+	// 👈 FIX: Look at proposals.advisor_id and deep preload for the UI
+	err := r.db.
+		Preload("Team.Members.User").
 		Preload("Team.Department").
-		Preload("CurrentVersion").
-		Joins("JOIN teams ON proposals.team_id = teams.id").
-		Where("teams.advisor_id = ?", reviewerID).
-		Where("proposals.status IN ?", []string{"submitted", "under_review"}).
+		Preload("Versions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("version_number DESC")
+		}).
+		Where("advisor_id = ?", advisorID). // 👈 Proposal's assigned advisor
+		Where("status IN ?", []string{"submitted", "under_review", "revision_required", "approved", "rejected"}).
 		Find(&proposals).Error
 
 	return proposals, err

@@ -299,3 +299,52 @@ func (h *Handler) GetPeers(c *gin.Context) {
 
 	response.Success(c, users)
 }
+
+// GetAdvisors godoc
+// @Summary List advisors with workload
+// @Description Admin sees list of advisors in their department with current team counts
+// @Tags Admin - Users
+// @Produce json
+// @Security BearerAuth
+// @Router /admin/advisors [get]
+func (h *Handler) GetAdvisors(c *gin.Context) {
+    claims, exists := c.Get("claims")
+    if !exists {
+        response.Error(c, http.StatusUnauthorized, "Unauthorized", nil)
+        return
+    }
+    userClaims := claims.(*auth.TokenClaims)
+
+    // Strict Data Isolation: Only get advisors from Admin's department
+    data, err := h.service.GetDepartmentAdvisorsWithWorkload(userClaims.DepartmentID)
+    if err != nil {
+        response.Error(c, http.StatusInternalServerError, "Failed to fetch advisors", err.Error())
+        return
+    }
+
+    response.Success(c, data)
+}
+
+// GetDashboardStats godoc
+// @Summary Get admin dashboard statistics
+// @Description Aggregated stats for the Department Head dashboard
+// @Tags Admin
+// @Produce json
+// @Security BearerAuth
+// @Router /admin/stats [get]
+func (h *Handler) GetDashboardStats(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+	userClaims := claims.(*auth.TokenClaims)
+
+	stats, err := h.service.GetAdminDashboardStats(userClaims.DepartmentID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to fetch stats", err.Error())
+		return
+	}
+
+	response.Success(c, stats)
+}

@@ -13,6 +13,7 @@ import (
 func NewRouter(app *App) *gin.Engine {
 	r := gin.Default()
 
+	r.Static("/uploads", "./uploads")
 	// Global Middlewares
 	r.Use(CORSMiddleware())
 	r.Use(RequestIDMiddleware())
@@ -114,14 +115,15 @@ func NewRouter(app *App) *gin.Engine {
 				proposals.DELETE("/:id", RoleMiddleware("student"), app.ProposalHandler.DeleteProposal)
 			}
 			// Feedback (Teachers)
-			// feedback := protected.Group("/feedback")
-			// feedback.Use(RoleMiddleware("teacher"))
-			// {
-			// 	feedback.GET("/pending", app.FeedbackHandler.GetPendingProposals)
-			// 	feedback.POST("", app.FeedbackHandler.CreateFeedback)
-			// 	feedback.GET("/:id", app.FeedbackHandler.GetFeedback)
-			// }
-
+			feedback := protected.Group("/feedback")
+			feedback.Use(RoleMiddleware("advisor"))
+			{
+				feedback.GET("/pending", app.FeedbackHandler.GetPendingProposals)
+				feedback.POST("", app.FeedbackHandler.CreateFeedback)
+				feedback.GET("/:id", app.FeedbackHandler.GetFeedback)
+				
+			}
+ 		protected.GET("/proposals/:id/feedback", app.FeedbackHandler.GetProposalFeedback)
 			// Admin User Management
 			admin := protected.Group("/admin")
 			admin.Use(RoleMiddleware("admin"))
@@ -130,10 +132,13 @@ func NewRouter(app *App) *gin.Engine {
 				admin.POST("/users/teacher", app.UserHandler.CreateTeacher)
 				admin.POST("/users/student", app.UserHandler.CreateStudent)
 				admin.GET("/users", app.UserHandler.GetUsers)
+				admin.GET("/advisors", app.UserHandler.GetAdvisors)
 				admin.GET("/users/:id", app.UserHandler.GetUser)
 				admin.PATCH("/users/:id/status", app.UserHandler.UpdateUserStatus)
 				admin.POST("/users/:id/assign-department", app.UserHandler.AssignDepartment)
 				admin.DELETE("/users/:id", app.UserHandler.DeleteUser)
+				admin.GET("/stats", app.UserHandler.GetDashboardStats) 
+				admin.PATCH("/proposals/:id/assign", app.ProposalHandler.AssignAdvisor)
 			}
 
 			// Projects (Team creators can manage, all can view)
@@ -147,26 +152,29 @@ func NewRouter(app *App) *gin.Engine {
 				//projects.GET("/:project_id/documentation", app.DocumentationHandler.GetProjectDocuments)
 			}
 
-			// Documentation (Team members upload, teachers review)
-			documentation := protected.Group("/documentation")
-			{
-				// Documentation handler is not available on App yet; return a placeholder response
-				documentation.POST("", func(c *gin.Context) {
-					response.JSON(c, http.StatusNotImplemented, "upload document not implemented", nil)
-				})
-				documentation.GET("/:id", func(c *gin.Context) {
-					response.JSON(c, http.StatusNotImplemented, "get document not implemented", nil)
-				})
-			}
+			// Documentation
+// Note: Changed projectId to id to match common patterns, 
+// or keep projectId if you prefer. 
+docsGroup := protected.Group("/projects/:id/documentation") 
+{
+    docsGroup.GET("", app.DocumentationHandler.GetProjectDocs)
+    docsGroup.POST("", RoleMiddleware("student"), app.DocumentationHandler.Submit)
+}
+// Individual Doc Actions (For deleting or reviewing)
+docActions := protected.Group("/documentation")
+{
+    docActions.DELETE("/:id", RoleMiddleware("student"), app.DocumentationHandler.Delete)
+    docActions.PATCH("/:id/review", RoleMiddleware("advisor"), app.DocumentationHandler.Review)
+}
 
-			// Documentation review (Teachers only)
-			docReview := protected.Group("/documentation")
-			docReview.Use(RoleMiddleware("teacher", "admin"))
-			{
-				docReview.POST("/:id/review", func(c *gin.Context) {
-					response.JSON(c, http.StatusNotImplemented, "review document not implemented", nil)
-				})
-			}
+			// // Documentation review (Teachers only)
+			// docReview := protected.Group("/documentation")
+			// docReview.Use(RoleMiddleware("teacher", "admin"))
+			// {
+			// 	docReview.POST("/:id/review", func(c *gin.Context) {
+			// 		response.JSON(c, http.StatusNotImplemented, "review document not implemented", nil)
+			// 	})
+			// }
 
 	
 		}

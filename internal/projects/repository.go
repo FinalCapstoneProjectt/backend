@@ -20,6 +20,7 @@ type repository struct {
 	db *gorm.DB
 }
 
+
 func NewRepository(db *gorm.DB) Repository {
 	return &repository{db: db}
 }
@@ -30,16 +31,12 @@ func (r *repository) Create(project *domain.Project) error {
 
 func (r *repository) GetByID(id uint) (*domain.Project, error) {
 	var project domain.Project
-	err := r.db.Preload("Proposal").
-		Preload("Team").
-		Preload("Team.Members").
-		Preload("Department").
-		Preload("Approver").
+	err := r.db.
+		Preload("Proposal.Versions").
+		Preload("Team.Members.User"). 
+		Preload("Team.Department").
 		First(&project, id).Error
-	if err != nil {
-		return nil, err
-	}
-	return &project, nil
+	return &project, err
 }
 
 func (r *repository) GetByProposalID(proposalID uint) (*domain.Project, error) {
@@ -53,9 +50,13 @@ func (r *repository) GetByProposalID(proposalID uint) (*domain.Project, error) {
 
 func (r *repository) GetAll(filters map[string]interface{}) ([]domain.Project, error) {
 	var projects []domain.Project
-	query := r.db.Preload("Team").
-		Preload("Department").
-		Preload("Proposal")
+	query := r.db.
+		Preload("Team.Members.User").
+		Preload("Proposal.Advisor").
+		Preload("Department"). // 👈 Now this works
+		Preload("Proposal.Versions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("version_number DESC")
+		})
 
 	if visibility, ok := filters["visibility"]; ok {
 		query = query.Where("visibility = ?", visibility)
@@ -72,7 +73,8 @@ func (r *repository) GetAll(filters map[string]interface{}) ([]domain.Project, e
 }
 
 func (r *repository) Update(project *domain.Project) error {
-	return r.db.Save(project).Error
+	// ⚠️ Use Omit to prevent GORM from trying to re-save the Team or Proposal objects
+	return r.db.Model(project).Omit("Team", "Proposal", "Department", "Approver").Updates(project).Error
 }
 
 func (r *repository) UpdateVisibility(id uint, visibility string) error {
@@ -86,3 +88,17 @@ func (r *repository) IncrementViewCount(id uint) error {
 		Where("id = ?", id).
 		Update("view_count", gorm.Expr("view_count + ?", 1)).Error
 }
+
+func (r *repository) GetByAdvisor(advisorID uint) ([]domain.Project, error) {
+	var projects []domain.Project
+	err := r.db.
+		Preload("Team.Members.User").
+		Preload("Proposal.Versions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("version_number DESC")
+		}).
+		Joins("JOIN proposals ON proposals.id = projects.proposal_id").
+		Where("proposals.advisor_id = ?", advisorID).
+		Find(&projects).Error
+	return projects, err
+}
+

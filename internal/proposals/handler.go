@@ -153,15 +153,19 @@ func (h *Handler) SubmitProposal(c *gin.Context) {
 // @Failure 500 {object} response.ErrorResponse
 // @Router /proposals [get]
 func (h *Handler) GetProposals(c *gin.Context) {
-	status := c.Query("status")
-	departmentIDStr := c.Query("department_id")
-	var departmentID uint
-	if departmentIDStr != "" {
-		id, _ := strconv.ParseUint(departmentIDStr, 10, 32)
-		departmentID = uint(id)
-	}
+	claims := getClaims(c)
+	if claims == nil { return }
 
-	proposals, err := h.service.GetProposals(status, departmentID)
+	status := c.Query("status")
+
+	// Call service with user context from token
+	proposals, err := h.service.GetProposals(
+		status, 
+		claims.UserID, 
+		claims.Role, 
+		claims.DepartmentID,
+	)
+	
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to fetch proposals", err.Error())
 		return
@@ -183,18 +187,31 @@ func (h *Handler) GetProposals(c *gin.Context) {
 // @Failure 404 {object} response.ErrorResponse
 // @Router /proposals/{id} [get]
 func (h *Handler) GetProposal(c *gin.Context) {
-	id := parseID(c)
-	if id == 0 { return }
+	claims := getClaims(c)
+	if claims == nil { return }
 
-	proposal, err := h.service.GetProposal(id)
+	proposalID := parseID(c)
+	if proposalID == 0 { return }
+
+	proposal, err := h.service.GetProposal(
+		proposalID, 
+		claims.UserID, 
+		claims.Role, 
+		claims.DepartmentID,
+	)
+
 	if err != nil {
-		response.Error(c, http.StatusNotFound, "Proposal not found", err.Error())
+		// Differentiate between Not Found and Forbidden
+		if err.Error() == "proposal not found" {
+			response.Error(c, http.StatusNotFound, err.Error(), nil)
+		} else {
+			response.Error(c, http.StatusForbidden, err.Error(), nil)
+		}
 		return
 	}
 
 	response.Success(c, proposal)
 }
-
 // GetProposal godoc
 // @Summary Get proposal by ID
 // @Description Retrieve a specific proposal by its ID
@@ -272,4 +289,30 @@ func parseID(c *gin.Context) uint {
 		return 0
 	}
 	return uint(id)
+}
+
+type AssignAdvisorRequest struct {
+    AdvisorID uint `json:"advisor_id" binding:"required"`
+}
+
+// AssignAdvisor godoc
+// @Summary Assign advisor to proposal
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Router /proposals/{id}/assign [patch]
+func (h *Handler) AssignAdvisor(c *gin.Context) {
+    id := parseID(c) // Helper
+    var req AssignAdvisorRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        response.Error(c, http.StatusBadRequest, "Invalid ID", err.Error())
+        return
+    }
+
+    if err := h.service.AssignAdvisor(id, req.AdvisorID); err != nil {
+        response.Error(c, http.StatusInternalServerError, "Assignment failed", err.Error())
+        return
+    }
+    response.JSON(c, http.StatusOK, "Advisor assigned successfully", nil)
 }

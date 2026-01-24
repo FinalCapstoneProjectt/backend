@@ -4,10 +4,11 @@ import (
 	"backend/config"
 	"backend/internal/auth"
 	"backend/internal/departments"
+	"backend/internal/files"
 
-	//"backend/internal/documentation"
+	"backend/internal/documentations"
 	"backend/internal/domain"
-	//"backend/internal/feedback" // Commented out until ready
+	"backend/internal/feedback"
 	"backend/internal/projects"
 	"backend/internal/proposals"
 	"backend/internal/teams"
@@ -31,9 +32,9 @@ type App struct {
 	UserHandler       *users.Handler
 	TeamHandler       *teams.Handler
 	ProposalHandler   *proposals.Handler
-	// FeedbackHandler   *feedback.Handler // Commented out to match initialization
+	FeedbackHandler   *feedback.Handler
 	ProjectHandler    *projects.Handler
-	// DocumentationHandler *documentation.Handler
+	DocumentationHandler *documentations.Handler
 }
 
 func Bootstrap(cfg config.Config) (*App, error) {
@@ -113,11 +114,11 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	proposalHandler := proposals.NewHandler(proposalService)
 	log.Println("Proposal service initialized")
 
-	// 10. Initialize Feedback Service (Commented out per your snippet)
-	// feedbackRepo := feedback.NewRepository(db)
-	// feedbackService := feedback.NewService(feedbackRepo, proposalRepo)
-	// feedbackHandler := feedback.NewHandler(feedbackService)
-	// log.Println("Feedback service initialized")
+	// 10. Initialize Feedback Service
+	feedbackRepo := feedback.NewRepository(db)
+	feedbackService := feedback.NewService(feedbackRepo, proposalRepo)
+	feedbackHandler := feedback.NewHandler(feedbackService)
+	log.Println("Feedback service initialized")
 
 	// 11. Initialize Project Service
 	projectRepo := projects.NewRepository(db)
@@ -125,13 +126,15 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	// If Project Service also needs DB now, check internal/projects/service.go
 	projectService := projects.NewService(projectRepo, proposalRepo) 
 	projectHandler := projects.NewHandler(projectService)
+	uploader := files.NewUploader("./uploads") 
+	
 	log.Println("Project service initialized")
 
 	// 12. Initialize Documentation Service
-	//documentationRepo := documentation.NewRepository(db)
-	//documentationService := documentation.NewService(documentationRepo, projectRepo)
-	//documentationHandler := documentation.NewHandler(documentationService)
-	//log.Println("Documentation service initialized")
+	documentationRepo := documentations.NewRepository(db)
+	documentationService := documentations.NewService(documentationRepo, uploader) 
+	documentationHandler := documentations.NewHandler(documentationService)
+	log.Println("Documentation service initialized")
 
 	return &App{
 		Config:            cfg,
@@ -144,8 +147,8 @@ func Bootstrap(cfg config.Config) (*App, error) {
 		UserHandler:       userHandler,
 		TeamHandler:       teamHandler,
 		ProposalHandler:   proposalHandler,
-		// FeedbackHandler:   feedbackHandler, // Must be commented out if not initialized above
+		FeedbackHandler:   feedbackHandler,
 		ProjectHandler:    projectHandler,
-		// DocumentationHandler: documentationHandler,
+		DocumentationHandler: documentationHandler,
 	}, nil
 }

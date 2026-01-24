@@ -2,6 +2,7 @@ package proposals
 
 import (
 	"backend/internal/domain"
+	"backend/pkg/enums"
 
 	"gorm.io/gorm"
 )
@@ -18,6 +19,8 @@ type Repository interface {
 	GetVersionsByProposalID(proposalID uint) ([]domain.ProposalVersion, error)
 	GetLatestVersion(proposalID uint) (*domain.ProposalVersion, error)
 	GetFirstVersion(proposalID uint) (*domain.ProposalVersion, error)
+
+	AssignAdvisor(proposalID uint, advisorID uint) error 
 }
 
 type repository struct {
@@ -54,7 +57,9 @@ func (r *repository) GetAll(filters map[string]interface{}) ([]domain.Proposal, 
 	var proposals []domain.Proposal
 	query := r.db.Preload("Team").
         Preload("Team.Department").
-        Preload("Team.Members"). // To count team size
+        Preload("Team.Creator").
+		Preload("Advisor").
+		Preload("Team.Members.User").  // To count team size
         Preload("Versions", func(db *gorm.DB) *gorm.DB {
             return db.Order("version_number DESC") // Get latest version first
         })
@@ -99,4 +104,30 @@ func (r *repository) GetFirstVersion(proposalID uint) (*domain.ProposalVersion, 
 	var version domain.ProposalVersion
 	err := r.db.Where("proposal_id = ? AND version_number = 1", proposalID).First(&version).Error
 	return &version, err
+}
+
+func (r *repository) AssignAdvisor(proposalID uint, advisorID uint) error {
+    return r.db.Transaction(func(tx *gorm.DB) error {
+        // 1. Update Proposal Status
+        if err := tx.Model(&domain.Proposal{}).
+            Where("id = ?", proposalID).
+            Updates(map[string]interface{}{
+                "advisor_id": advisorID,
+                "status":     enums.ProposalStatusUnderReview,
+            }).Error; err != nil {
+            return err
+        }
+
+        // 2. Update Team (Since team now has an advisor)
+        // We need to fetch the proposal first to get TeamID
+        var p domain.Proposal
+        if err := tx.First(&p, proposalID).Error; err != nil { return err }
+        
+        if p.TeamID != nil {
+            if err := tx.Model(&domain.Team{}).
+                Where("id = ?", *p.TeamID).
+                Update("advisor_id", advisorID).Error; err != nil { return err }
+        }
+        return nil
+    })
 }

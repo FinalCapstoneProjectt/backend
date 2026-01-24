@@ -28,22 +28,17 @@ func NewHandler(s *Service) *Handler {
 // @Failure 500 {object} response.ErrorResponse
 // @Router /feedback/pending [get]
 func (h *Handler) GetPendingProposals(c *gin.Context) {
-	claims, exists := c.Get("claims")
-	if !exists {
-		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
-		return
-	}
-
+	claims, _ := c.Get("claims")
 	userClaims := claims.(*auth.TokenClaims)
 
 	proposals, err := h.service.GetPendingProposals(userClaims.UserID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "Failed to fetch pending proposals", err.Error())
+		response.Error(c, http.StatusInternalServerError, "Fetch failed", err.Error())
 		return
 	}
-
 	response.Success(c, proposals)
 }
+
 
 // CreateFeedback godoc
 // @Summary Submit feedback for a proposal
@@ -60,31 +55,22 @@ func (h *Handler) GetPendingProposals(c *gin.Context) {
 // @Failure 500 {object} response.ErrorResponse
 // @Router /feedback [post]
 func (h *Handler) CreateFeedback(c *gin.Context) {
-	claims, exists := c.Get("claims")
-	if !exists {
-		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
-		return
-	}
-
+	claims, _ := c.Get("claims")
 	userClaims := claims.(*auth.TokenClaims)
 
 	var req CreateFeedbackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid request", err.Error())
 		return
 	}
 
 	feedback, err := h.service.CreateFeedback(req, userClaims.UserID)
 	if err != nil {
-		if err.Error() == "only the assigned advisor can review this proposal" {
-			response.Error(c, http.StatusForbidden, "Forbidden", err.Error())
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "Failed to create feedback", err.Error())
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, "Feedback submitted successfully", feedback)
+	response.JSON(c, http.StatusCreated, "Feedback submitted", feedback)
 }
 
 // GetProposalFeedback godoc
@@ -155,3 +141,4 @@ func (h *Handler) GetFeedback(c *gin.Context) {
 
 	response.Success(c, feedback)
 }
+

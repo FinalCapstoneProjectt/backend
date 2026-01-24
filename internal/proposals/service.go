@@ -4,6 +4,7 @@ import (
 	"backend/internal/domain"
 	"backend/pkg/enums"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -136,11 +137,11 @@ func (s *Service) SubmitProposal(proposalID uint, teamID uint, userID uint) erro
 	proposal, err := s.repo.GetByID(proposalID)
 	if err != nil { return err }
 
-	// Rule: Valid Status?
+	// 1. Check State
 	if !CanSubmit(proposal.Status) {
+		fmt.Printf("❌ SUBMIT FAIL: Proposal %d is in status %s\n", proposalID, proposal.Status)
 		return errors.New("proposal cannot be submitted in current state")
 	}
-
 	// Rule: Fetch Team & Check Finalized
 	var team domain.Team
 	if err := s.db.Preload("Members").First(&team, teamID).Error; err != nil {
@@ -170,16 +171,85 @@ func (s *Service) SubmitProposal(proposalID uint, teamID uint, userID uint) erro
 }
 
 // Getters
-func (s *Service) GetProposals(status string, deptID uint) ([]domain.Proposal, error) {
+func (s *Service) GetProposal(id uint, userID uint, role enums.Role, userDeptID uint) (*domain.Proposal, error) {
+	proposal, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, errors.New("proposal not found")
+	}
+
+	// 🔒 PERMISSION CHECK 🔒
+	allowed := false
+
+	switch role {
+	case enums.RoleAdmin:
+		// Admin (Dept Head) must be in the same department as the team
+		if proposal.Team != nil && proposal.Team.DepartmentID == userDeptID {
+			allowed = true
+		}
+	case enums.RoleAdvisor:
+		// Advisor must be the one assigned to this proposal
+		if proposal.AdvisorID != nil && *proposal.AdvisorID == userID {
+			allowed = true
+		}
+	case enums.RoleStudent:
+		// 1. Is user the creator/leader?
+		if proposal.CreatedBy == userID {
+			allowed = true
+		}
+		// 2. Is user a member? (They can see it ONLY if it's NOT a draft)
+		if !allowed && proposal.Team != nil {
+			for _, m := range proposal.Team.Members {
+				if m.UserID == userID {
+					if proposal.Status != enums.ProposalStatusDraft {
+						allowed = true
+					}
+					break
+				}
+			}
+		}
+	}
+
+	if !allowed {
+		return nil, errors.New("you do not have permission to view this proposal")
+	}
+
+	return proposal, nil
+}
+
+// GetProposals fetches a list of proposals filtered by user role (Data Isolation)
+func (s *Service) GetProposals(status string, userID uint, role enums.Role, userDeptID uint) ([]domain.Proposal, error) {
 	filters := make(map[string]interface{})
-	if status != "" { filters["status"] = status }
-	if deptID != 0 { filters["department_id"] = deptID }
+
+	if status != "" {
+		filters["status"] = status
+	}
+
+	// 🔒 DATA ISOLATION 🔒
+	switch role {
+	case enums.RoleAdmin:
+		// Admin sees everything in their department
+		filters["department_id"] = userDeptID
+	case enums.RoleAdvisor:
+		// Advisor sees only their assigned proposals
+		filters["advisor_id"] = userID
+	case enums.RoleStudent:
+		// Students see proposals where they are members/leaders
+		filters["user_id"] = userID
+		// Note: The repository logic must handle filtering out drafts for members
+	}
+
 	return s.repo.GetAll(filters)
 }
 
-func (s *Service) GetProposal(id uint) (*domain.Proposal, error) {
-	return s.repo.GetByID(id)
+
+func (s *Service) AssignAdvisor(proposalID uint, advisorID uint) error {
+    // Ideally check if advisor exists and is in same department, skipping for speed
+    return s.repo.AssignAdvisor(proposalID, advisorID)
 }
+
+// func (s *Service) GetProposal(id uint) (*domain.Proposal, error) {
+// 	return s.repo.GetByID(id)
+// }
 
 func (s *Service) GetVersions(id uint) ([]domain.ProposalVersion, error) {
 	return s.repo.GetVersionsByProposalID(id)

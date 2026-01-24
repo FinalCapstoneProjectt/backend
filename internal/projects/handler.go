@@ -132,6 +132,7 @@ func (h *Handler) GetProject(c *gin.Context) {
 // @Router /projects/{id} [put]
 func (h *Handler) UpdateProject(c *gin.Context) {
 	claims, exists := c.Get("claims")
+
 	if !exists {
 		response.Error(c, http.StatusUnauthorized, "Unauthorized", "No authentication claims found")
 		return
@@ -151,17 +152,15 @@ func (h *Handler) UpdateProject(c *gin.Context) {
 		return
 	}
 
-	project, err := h.service.UpdateProject(uint(id), req, userClaims.UserID)
+	project, err := h.service.UpdateProject(uint(id), req, userClaims.UserID, userClaims.Role)
 	if err != nil {
-		if err.Error() == "only team creator can update project" {
+		if err.Error() == "unauthorized: you cannot update this project" {
 			response.Error(c, http.StatusForbidden, "Forbidden", err.Error())
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "Failed to update project", err.Error())
-		return
-	}
-
 	response.JSON(c, http.StatusOK, "Project updated successfully", project)
+
+}
 }
 
 // PublishProject godoc
@@ -192,7 +191,7 @@ func (h *Handler) PublishProject(c *gin.Context) {
 		return
 	}
 
-	err = h.service.PublishProject(uint(id), userClaims.UserID)
+	err = h.service.PublishProject(uint(id), userClaims.UserID, userClaims.Role)
 	if err != nil {
 		if err.Error() == "only team creator can publish project" {
 			response.Error(c, http.StatusForbidden, "Forbidden", err.Error())
@@ -203,4 +202,5 @@ func (h *Handler) PublishProject(c *gin.Context) {
 	}
 
 	response.JSON(c, http.StatusOK, "Project published successfully", nil)
+
 }

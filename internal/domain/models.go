@@ -83,12 +83,15 @@ type Proposal struct {
 	TeamID           *uint                `json:"team_id"` // ⚠️ Changed to pointer to allow NULL
 	AdvisorID        *uint                `json:"advisor_id"`
 	Status           enums.ProposalStatus `gorm:"type:varchar(30);default:'draft'" json:"status"`
+	CreatedBy         uint   			  `json:"created_by"` // 👈 Add this
 	
 	// Relationships
 	Team             *Team                `gorm:"foreignKey:TeamID" json:"team,omitempty"`
 	Versions         []ProposalVersion    `gorm:"foreignKey:ProposalID" json:"versions"`
 	CreatedAt        time.Time            `json:"created_at"`
 	UpdatedAt        time.Time            `json:"updated_at"`
+	Advisor          *User                `gorm:"foreignKey:AdvisorID" json:"advisor,omitempty"`
+
 }
 
 // Ensure ProposalVersion matches your DBML
@@ -123,9 +126,9 @@ type Feedback struct {
 	Decision          FeedbackDecision `gorm:"type:varchar(20);not null" json:"decision"`
 	Comment           string           `gorm:"type:text;not null" json:"comment"`
 	IsStructured      bool             `gorm:"default:false" json:"is_structured"`
-	IPAddress         string           `gorm:"type:inet" json:"-"`
-	UserAgent         string           `gorm:"type:text" json:"-"`
-	SessionID         string           `gorm:"type:varchar(255)" json:"-"`
+	IPAddress         *string          `gorm:"type:inet" json:"-"`
+	UserAgent         *string          `gorm:"type:text" json:"-"`
+	SessionID         *string          `gorm:"type:varchar(255)" json:"-"`
 	CreatedAt         time.Time        `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
 	Proposal          Proposal         `gorm:"foreignKey:ProposalID"`
 	Version           ProposalVersion  `gorm:"foreignKey:ProposalVersionID"`
@@ -142,7 +145,7 @@ const (
 
 type Project struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
-	ProposalID   uint      `gorm:"unique" json:"proposal_id"`
+	ProposalID   uint      `gorm:"uniqueIndex" json:"proposal_id"`
 	TeamID       uint      `json:"team_id"`
 	Summary      string    `json:"summary"`
 	ApprovedBy   uint      `json:"approved_by"`
@@ -150,8 +153,14 @@ type Project struct {
 	Visibility   string    `gorm:"type:varchar(20);default:'private'" json:"visibility"`
 	ShareCount   int       `gorm:"default:0" json:"share_count"`
 	CreatedAt    time.Time `json:"created_at"`
-	Proposal     Proposal  `gorm:"foreignKey:ProposalID"`
-	Team         Team      `gorm:"foreignKey:TeamID"`
+	ViewCount    int       `gorm:"default:0" json:"view_count"` // 👈 ADD THIS
+
+	// 👇 ADD THESE RELATIONSHIPS
+	Proposal   Proposal   `gorm:"foreignKey:ProposalID" json:"proposal"`
+	Team       Team       `gorm:"foreignKey:TeamID" json:"team"`
+	Department Department `gorm:"foreignKey:DepartmentID" json:"department"`
+	Approver   User       `gorm:"foreignKey:ApprovedBy" json:"approver"`
+	
 }
 
 type ProjectDocumentation struct {
