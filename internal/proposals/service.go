@@ -18,9 +18,13 @@ func NewService(r Repository, db *gorm.DB) *Service {
 	return &Service{repo: r, db: db}
 }
 
+func (s *Service) GetLatestVersion(proposalID uint) (*domain.ProposalVersion, error) {
+	return s.repo.GetLatestVersion(proposalID)
+}
+
 // DTO for Service Input
 type ProposalInput struct {
-	TeamID           *uint 
+	TeamID           *uint
 	Title            string
 	Abstract         string
 	ProblemStatement string
@@ -33,21 +37,23 @@ type ProposalInput struct {
 // 1. Create New Draft (Creates Proposal + Version 1)
 func (s *Service) CreateDraft(input ProposalInput, userID uint) (*domain.Proposal, error) {
 	var proposal domain.Proposal
-	
+
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Create Parent (Status: Draft)
 		proposal = domain.Proposal{
 			TeamID:    input.TeamID,
 			Status:    enums.ProposalStatusDraft,
 			AdvisorID: nil,
-			CreatedBy: userID,
+				CreatedBy: userID,
 		}
-		if err := tx.Create(&proposal).Error; err != nil { return err }
+		if err := tx.Create(&proposal).Error; err != nil {
+			return err
+		}
 
 		// 2. Create Version 1
 		version := domain.ProposalVersion{
 			ProposalID:       proposal.ID,
-			CreatedBy: userID,
+			CreatedBy:        userID,
 			VersionNumber:    1,
 			Title:            input.Title,
 			Abstract:         input.Abstract,
@@ -56,9 +62,9 @@ func (s *Service) CreateDraft(input ProposalInput, userID uint) (*domain.Proposa
 			Methodology:      input.Methodology,
 			ExpectedTimeline: input.Timeline,
 			ExpectedOutcomes: input.ExpectedOutcomes,
-			FileURL:         nil,
-			FileHash:      "",
-    		FileSizeBytes: 0,
+			FileURL:          nil,
+			FileHash:         "",
+			FileSizeBytes:    0,
 		}
 		return tx.Create(&version).Error
 	})
@@ -68,7 +74,9 @@ func (s *Service) CreateDraft(input ProposalInput, userID uint) (*domain.Proposa
 // 2. Update Proposal (Edit Draft OR Create Revision)
 func (s *Service) UpdateProposal(proposalID uint, input ProposalInput, userID uint) (*domain.Proposal, error) {
 	proposal, err := s.repo.GetByID(proposalID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	// Rule: Check if status allows editing (Draft, Rejected, RevisionRequired)
 	if !CanEdit(proposal.Status) {
@@ -87,7 +95,9 @@ func (s *Service) UpdateProposal(proposalID uint, input ProposalInput, userID ui
 // Internal: Overwrites Version 1 directly
 func (s *Service) overwriteDraftVersion(p *domain.Proposal, input ProposalInput) (*domain.Proposal, error) {
 	version, err := s.repo.GetFirstVersion(p.ID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	// Update Fields
 	version.Title = input.Title
@@ -100,21 +110,27 @@ func (s *Service) overwriteDraftVersion(p *domain.Proposal, input ProposalInput)
 	// Update Team if changed
 	if input.TeamID != nil {
 		p.TeamID = input.TeamID
-		if err := s.repo.Update(p); err != nil { return nil, err }
+		if err := s.repo.Update(p); err != nil {
+			return nil, err
+		}
 	}
 
-	if err := s.db.Save(version).Error; err != nil { return nil, err }
+	if err := s.db.Save(version).Error; err != nil {
+		return nil, err
+	}
 	return p, nil
 }
 
 // Internal: Creates V+1
 func (s *Service) createNewVersion(p *domain.Proposal, input ProposalInput, userID uint) (*domain.Proposal, error) {
 	lastVer, err := s.repo.GetLatestVersion(p.ID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	newVer := domain.ProposalVersion{
 		ProposalID:       p.ID,
-		CreatedBy: userID,
+		CreatedBy:        userID,
 		VersionNumber:    lastVer.VersionNumber + 1,
 		Title:            input.Title,
 		Abstract:         input.Abstract,
@@ -122,21 +138,25 @@ func (s *Service) createNewVersion(p *domain.Proposal, input ProposalInput, user
 		Objectives:       input.Objectives,
 		Methodology:      input.Methodology,
 		ExpectedTimeline: input.Timeline,
-		ExpectedOutcomes: input.ExpectedOutcomes, 
-		FileHash:      "",
-   		FileSizeBytes: 0,
+		ExpectedOutcomes: input.ExpectedOutcomes,
+		FileHash:         "",
+		FileSizeBytes:    0,
 
-		FileURL:         nil,
+		FileURL: nil,
 	}
 
-	if err := s.repo.CreateVersion(&newVer); err != nil { return nil, err }
+	if err := s.repo.CreateVersion(&newVer); err != nil {
+		return nil, err
+	}
 	return p, nil
 }
 
 // 3. Submit Proposal
 func (s *Service) SubmitProposal(proposalID uint, teamID uint, userID uint) error {
 	proposal, err := s.repo.GetByID(proposalID)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	// 1. Check State
 	if !CanSubmit(proposal.Status) {
@@ -157,7 +177,8 @@ func (s *Service) SubmitProposal(proposalID uint, teamID uint, userID uint) erro
 	isLeader := false
 	for _, m := range team.Members {
 		if m.UserID == userID && m.Role == "leader" {
-			isLeader = true; break
+			isLeader = true
+			break
 		}
 	}
 	if !isLeader {
@@ -167,7 +188,7 @@ func (s *Service) SubmitProposal(proposalID uint, teamID uint, userID uint) erro
 	// Update Status to Submitted
 	proposal.TeamID = &teamID
 	proposal.Status = enums.ProposalStatusSubmitted
-	
+
 	return s.repo.Update(proposal)
 }
 
@@ -242,10 +263,9 @@ func (s *Service) GetProposals(status string, userID uint, role enums.Role, user
 	return s.repo.GetAll(filters)
 }
 
-
 func (s *Service) AssignAdvisor(proposalID uint, advisorID uint) error {
-    // Ideally check if advisor exists and is in same department, skipping for speed
-    return s.repo.AssignAdvisor(proposalID, advisorID)
+	// Ideally check if advisor exists and is in same department, skipping for speed
+	return s.repo.AssignAdvisor(proposalID, advisorID)
 }
 
 // func (s *Service) GetProposal(id uint) (*domain.Proposal, error) {
@@ -258,72 +278,12 @@ func (s *Service) GetVersions(id uint) ([]domain.ProposalVersion, error) {
 
 func (s *Service) DeleteProposal(id uint) error {
 	proposal, err := s.repo.GetByID(id)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	if proposal.Status != enums.ProposalStatusDraft {
 		return errors.New("only draft proposals can be deleted")
 	}
 	return s.repo.Delete(id)
-}
-
-// StartReview transitions proposal from submitted to under_review
-func (s *Service) StartReview(proposalID uint, advisorID uint) error {
-	proposal, err := s.repo.GetByID(proposalID)
-	if err != nil {
-		return errors.New("proposal not found")
-	}
-
-	// Rule: Only assigned advisor can start review
-	if proposal.AdvisorID == nil || *proposal.AdvisorID != advisorID {
-		return errors.New("only assigned advisor can start review")
-	}
-
-	// Rule: Must be in submitted status
-	if proposal.Status != enums.ProposalStatusSubmitted {
-		return errors.New("proposal must be in submitted status to start review")
-	}
-
-	proposal.Status = enums.ProposalStatusUnderReview
-	return s.repo.Update(proposal)
-}
-
-// CreateVersion creates a new version for a proposal
-func (s *Service) CreateVersion(proposalID uint, input ProposalInput, userID uint) (*domain.ProposalVersion, error) {
-	proposal, err := s.repo.GetByID(proposalID)
-	if err != nil {
-		return nil, errors.New("proposal not found")
-	}
-
-	// Rule: Can only create new version if status allows
-	if !CanEdit(proposal.Status) {
-		return nil, errors.New("cannot create version: proposal is locked")
-	}
-
-	// Get latest version number
-	lastVer, err := s.repo.GetLatestVersion(proposalID)
-	if err != nil {
-		return nil, err
-	}
-
-	newVer := &domain.ProposalVersion{
-		ProposalID:       proposalID,
-		CreatedBy:        userID,
-		VersionNumber:    lastVer.VersionNumber + 1,
-		Title:            input.Title,
-		Abstract:         input.Abstract,
-		ProblemStatement: input.ProblemStatement,
-		Objectives:       input.Objectives,
-		Methodology:      input.Methodology,
-		ExpectedTimeline: input.Timeline,
-		ExpectedOutcomes: input.ExpectedOutcomes,
-		FileURL:          nil,
-		FileHash:         "",
-		FileSizeBytes:    0,
-	}
-
-	if err := s.repo.CreateVersion(newVer); err != nil {
-		return nil, err
-	}
-
-	return newVer, nil
 }
