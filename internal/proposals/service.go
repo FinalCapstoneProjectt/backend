@@ -40,6 +40,7 @@ func (s *Service) CreateDraft(input ProposalInput, userID uint) (*domain.Proposa
 			TeamID:    input.TeamID,
 			Status:    enums.ProposalStatusDraft,
 			AdvisorID: nil,
+			CreatedBy: userID,
 		}
 		if err := tx.Create(&proposal).Error; err != nil { return err }
 
