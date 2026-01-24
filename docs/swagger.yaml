@@ -1,5 +1,17 @@
 basePath: /api/v1
 definitions:
+  ai_checker.ProposalCheckRequest:
+    properties:
+      objectives:
+        example: Project objectives text
+        type: string
+      title:
+        example: Project Title
+        type: string
+    required:
+    - objectives
+    - title
+    type: object
   auth.LoginRequest:
     properties:
       email:
@@ -119,14 +131,20 @@ definitions:
     properties:
       approved_by:
         type: integer
+      approver:
+        $ref: '#/definitions/domain.User'
       created_at:
         type: string
+      department:
+        $ref: '#/definitions/domain.Department'
       department_id:
         type: integer
       id:
         type: integer
       proposal:
-        $ref: '#/definitions/domain.Proposal'
+        allOf:
+        - $ref: '#/definitions/domain.Proposal'
+        description: "\U0001F447 ADD THESE RELATIONSHIPS"
       proposal_id:
         type: integer
       share_count:
@@ -137,15 +155,23 @@ definitions:
         $ref: '#/definitions/domain.Team'
       team_id:
         type: integer
+      view_count:
+        description: "\U0001F448 ADD THIS"
+        type: integer
       visibility:
         type: string
     type: object
   domain.Proposal:
     properties:
+      advisor:
+        $ref: '#/definitions/domain.User'
       advisor_id:
         type: integer
       created_at:
         type: string
+      created_by:
+        description: "\U0001F448 Add this"
+        type: integer
       id:
         type: integer
       status:
@@ -170,7 +196,23 @@ definitions:
         type: string
       created_at:
         type: string
+      created_by:
+        type: integer
+      creator:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: 'Optional: Relationship'
+      expected_outcomes:
+        type: string
       expected_timeline:
+        type: string
+      file_hash:
+        description: Removed "not null"
+        type: string
+      file_size_bytes:
+        type: integer
+      file_url:
+        description: nullable
         type: string
       id:
         type: integer
@@ -186,27 +228,32 @@ definitions:
         type: integer
       title:
         type: string
+      updated_at:
+        type: string
       version_number:
         type: integer
     type: object
   domain.Team:
     properties:
+      advisor:
+        $ref: '#/definitions/domain.User'
       advisor_id:
-        description: Admin assigns this later
         type: integer
       created_at:
         type: string
       created_by:
         type: integer
+      creator:
+        $ref: '#/definitions/domain.User'
+      department:
+        $ref: '#/definitions/domain.Department'
       department_id:
         type: integer
       id:
         type: integer
       is_finalized:
-        description: The "Lock"
         type: boolean
       members:
-        description: Relationships
         items:
           $ref: '#/definitions/domain.TeamMember'
         type: array
@@ -327,10 +374,10 @@ definitions:
   feedback.CreateFeedbackRequest:
     properties:
       comment:
-        minLength: 20
         type: string
       decision:
-        $ref: '#/definitions/domain.FeedbackDecision'
+        description: approve, revise, reject
+        type: string
       proposal_id:
         type: integer
       proposal_version_id:
@@ -348,27 +395,20 @@ definitions:
       proposal_id:
         type: integer
       summary:
-        minLength: 50
         type: string
-    required:
-    - keywords
-    - proposal_id
-    - summary
     type: object
   projects.UpdateProjectRequest:
     properties:
-      keywords:
-        type: string
       summary:
-        minLength: 50
         type: string
-    required:
-    - keywords
-    - summary
+      visibility:
+        type: string
     type: object
   proposals.SaveProposalRequest:
     properties:
       abstract:
+        type: string
+      expected_outcomes:
         type: string
       expected_timeline:
         type: string
@@ -529,6 +569,29 @@ info:
   title: University Project Hub API
   version: "1.0"
 paths:
+  /admin/advisors:
+    get:
+      description: Admin sees list of advisors in their department with current team
+        counts
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: List advisors with workload
+      tags:
+      - Admin - Users
+  /admin/stats:
+    get:
+      description: Aggregated stats for the Department Head dashboard
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Get admin dashboard statistics
+      tags:
+      - Admin
   /admin/users:
     get:
       description: Admin retrieves list of users with optional filters
@@ -830,6 +893,88 @@ paths:
       summary: Register a new teacher
       tags:
       - Admin - Users
+  /ai-checker/health:
+    get:
+      description: Checks if the AI service is reachable
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: AI service health check
+      tags:
+      - AI Checker
+  /ai-checker/proposal-check:
+    post:
+      consumes:
+      - application/json
+      description: Sends proposal title and objectives to the AI service
+      parameters:
+      - description: Proposal content
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/ai_checker.ProposalCheckRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Analyze proposal text
+      tags:
+      - AI Checker
+  /ai-checker/proposal-check-file:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads proposal PDF/DOCX file to the AI service
+      parameters:
+      - description: Proposal file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Analyze proposal file
+      tags:
+      - AI Checker
   /auth/login:
     post:
       consumes:
@@ -1605,6 +1750,18 @@ paths:
       summary: Update proposal or create revision
       tags:
       - Proposals
+  /proposals/{id}/assign:
+    patch:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Assign advisor to proposal
+      tags:
+      - Admin
   /proposals/{id}/feedback:
     get:
       description: Retrieve all feedback history for a specific proposal
@@ -2195,6 +2352,17 @@ paths:
       summary: Update university settings
       tags:
       - Universities
+  /users/peers:
+    get:
+      description: Used for populating invite dropdowns
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Get students in same department
+      tags:
+      - Users
 schemes:
 - http
 securityDefinitions:

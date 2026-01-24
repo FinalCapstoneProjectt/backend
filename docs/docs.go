@@ -15,6 +15,42 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/advisors": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin sees list of advisors in their department with current team counts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Users"
+                ],
+                "summary": "List advisors with workload",
+                "responses": {}
+            }
+        },
+        "/admin/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Aggregated stats for the Department Head dashboard",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get admin dashboard statistics",
+                "responses": {}
+            }
+        },
         "/admin/users": {
             "get": {
                 "security": [
@@ -496,6 +532,137 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-checker/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Checks if the AI service is reachable",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Checker"
+                ],
+                "summary": "AI service health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-checker/proposal-check": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sends proposal title and objectives to the AI service",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Checker"
+                ],
+                "summary": "Analyze proposal text",
+                "parameters": [
+                    {
+                        "description": "Proposal content",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ai_checker.ProposalCheckRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-checker/proposal-check-file": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Uploads proposal PDF/DOCX file to the AI service",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Checker"
+                ],
+                "summary": "Analyze proposal file",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Proposal file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -1788,6 +1955,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/proposals/{id}/assign": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Assign advisor to proposal",
+                "responses": {}
+            }
+        },
         "/proposals/{id}/feedback": {
             "get": {
                 "security": [
@@ -2749,9 +2936,44 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/peers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Used for populating invite dropdowns",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get students in same department",
+                "responses": {}
+            }
         }
     },
     "definitions": {
+        "ai_checker.ProposalCheckRequest": {
+            "type": "object",
+            "required": [
+                "objectives",
+                "title"
+            ],
+            "properties": {
+                "objectives": {
+                    "type": "string",
+                    "example": "Project objectives text"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Project Title"
+                }
+            }
+        },
         "auth.LoginRequest": {
             "type": "object",
             "required": [
@@ -2927,8 +3149,14 @@ const docTemplate = `{
                 "approved_by": {
                     "type": "integer"
                 },
+                "approver": {
+                    "$ref": "#/definitions/domain.User"
+                },
                 "created_at": {
                     "type": "string"
+                },
+                "department": {
+                    "$ref": "#/definitions/domain.Department"
                 },
                 "department_id": {
                     "type": "integer"
@@ -2937,7 +3165,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "proposal": {
-                    "$ref": "#/definitions/domain.Proposal"
+                    "description": "👇 ADD THESE RELATIONSHIPS",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Proposal"
+                        }
+                    ]
                 },
                 "proposal_id": {
                     "type": "integer"
@@ -2954,6 +3187,10 @@ const docTemplate = `{
                 "team_id": {
                     "type": "integer"
                 },
+                "view_count": {
+                    "description": "👈 ADD THIS",
+                    "type": "integer"
+                },
                 "visibility": {
                     "type": "string"
                 }
@@ -2962,11 +3199,18 @@ const docTemplate = `{
         "domain.Proposal": {
             "type": "object",
             "properties": {
+                "advisor": {
+                    "$ref": "#/definitions/domain.User"
+                },
                 "advisor_id": {
                     "type": "integer"
                 },
                 "created_at": {
                     "type": "string"
+                },
+                "created_by": {
+                    "description": "👈 Add this",
+                    "type": "integer"
                 },
                 "id": {
                     "type": "integer"
@@ -3006,7 +3250,32 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "created_by": {
+                    "type": "integer"
+                },
+                "creator": {
+                    "description": "Optional: Relationship",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.User"
+                        }
+                    ]
+                },
+                "expected_outcomes": {
+                    "type": "string"
+                },
                 "expected_timeline": {
+                    "type": "string"
+                },
+                "file_hash": {
+                    "description": "Removed \"not null\"",
+                    "type": "string"
+                },
+                "file_size_bytes": {
+                    "type": "integer"
+                },
+                "file_url": {
+                    "description": "nullable",
                     "type": "string"
                 },
                 "id": {
@@ -3030,6 +3299,9 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
+                "updated_at": {
+                    "type": "string"
+                },
                 "version_number": {
                     "type": "integer"
                 }
@@ -3038,8 +3310,10 @@ const docTemplate = `{
         "domain.Team": {
             "type": "object",
             "properties": {
+                "advisor": {
+                    "$ref": "#/definitions/domain.User"
+                },
                 "advisor_id": {
-                    "description": "Admin assigns this later",
                     "type": "integer"
                 },
                 "created_at": {
@@ -3048,6 +3322,12 @@ const docTemplate = `{
                 "created_by": {
                     "type": "integer"
                 },
+                "creator": {
+                    "$ref": "#/definitions/domain.User"
+                },
+                "department": {
+                    "$ref": "#/definitions/domain.Department"
+                },
                 "department_id": {
                     "type": "integer"
                 },
@@ -3055,11 +3335,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "is_finalized": {
-                    "description": "The \"Lock\"",
                     "type": "boolean"
                 },
                 "members": {
-                    "description": "Relationships",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.TeamMember"
@@ -3239,11 +3517,11 @@ const docTemplate = `{
             ],
             "properties": {
                 "comment": {
-                    "type": "string",
-                    "minLength": 20
+                    "type": "string"
                 },
                 "decision": {
-                    "$ref": "#/definitions/domain.FeedbackDecision"
+                    "description": "approve, revise, reject",
+                    "type": "string"
                 },
                 "proposal_id": {
                     "type": "integer"
@@ -3255,11 +3533,6 @@ const docTemplate = `{
         },
         "projects.CreateProjectRequest": {
             "type": "object",
-            "required": [
-                "keywords",
-                "proposal_id",
-                "summary"
-            ],
             "properties": {
                 "keywords": {
                     "type": "string"
@@ -3268,24 +3541,18 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "summary": {
-                    "type": "string",
-                    "minLength": 50
+                    "type": "string"
                 }
             }
         },
         "projects.UpdateProjectRequest": {
             "type": "object",
-            "required": [
-                "keywords",
-                "summary"
-            ],
             "properties": {
-                "keywords": {
+                "summary": {
                     "type": "string"
                 },
-                "summary": {
-                    "type": "string",
-                    "minLength": 50
+                "visibility": {
+                    "type": "string"
                 }
             }
         },
@@ -3296,6 +3563,9 @@ const docTemplate = `{
             ],
             "properties": {
                 "abstract": {
+                    "type": "string"
+                },
+                "expected_outcomes": {
                     "type": "string"
                 },
                 "expected_timeline": {
