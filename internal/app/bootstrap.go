@@ -2,15 +2,17 @@ package app
 
 import (
 	"backend/config"
+	"backend/internal/ai_checker"
 	"backend/internal/auth"
 	"backend/internal/departments"
-	"backend/internal/files"
-
 	"backend/internal/documentations"
 	"backend/internal/domain"
 	"backend/internal/feedback"
+	"backend/internal/files"
+	"backend/internal/notifications"
 	"backend/internal/projects"
 	"backend/internal/proposals"
+	"backend/internal/reviews"
 	"backend/internal/teams"
 	"backend/internal/universities"
 	"backend/internal/users"
@@ -22,19 +24,23 @@ import (
 )
 
 type App struct {
-	Config            config.Config
-	DB                *gorm.DB
-	AuditLogger       *audit.Logger
-	AuthService       auth.Service
-	AuthHandler       *auth.Handler
-	UniversityHandler *universities.Handler
-	DepartmentHandler *departments.Handler
-	UserHandler       *users.Handler
-	TeamHandler       *teams.Handler
-	ProposalHandler   *proposals.Handler
-	FeedbackHandler   *feedback.Handler
-	ProjectHandler    *projects.Handler
+	Config               config.Config
+	DB                   *gorm.DB
+	AuditLogger          *audit.Logger
+	AuthService          auth.Service
+	AuthHandler          *auth.Handler
+	UniversityHandler    *universities.Handler
+	DepartmentHandler    *departments.Handler
+	UserHandler          *users.Handler
+	TeamHandler          *teams.Handler
+	ProposalHandler      *proposals.Handler
+	FeedbackHandler      *feedback.Handler
+	ProjectHandler       *projects.Handler
 	DocumentationHandler *documentations.Handler
+	NotificationHandler  *notifications.Handler
+	ReviewHandler        *reviews.Handler
+	AIHandler            *ai_checker.Handler
+	AuditHandler         *audit.Handler
 }
 
 func Bootstrap(cfg config.Config) (*App, error) {
@@ -136,19 +142,49 @@ func Bootstrap(cfg config.Config) (*App, error) {
 	documentationHandler := documentations.NewHandler(documentationService)
 	log.Println("Documentation service initialized")
 
+	// 13. Initialize Notification Service
+	notificationRepo := notifications.NewRepository(db)
+	notificationService := notifications.NewService(notificationRepo)
+	notificationHandler := notifications.NewHandler(notificationService)
+	log.Println("Notification service initialized")
+
+	// 14. Initialize Review Service
+	reviewRepo := reviews.NewRepository(db)
+	reviewService := reviews.NewService(reviewRepo, projectRepo)
+	reviewHandler := reviews.NewHandler(reviewService)
+	log.Println("Review service initialized")
+
+	// 15. Initialize AI Checker Service
+	aiServiceURL := cfg.AIServiceURL
+	if aiServiceURL == "" {
+		aiServiceURL = "http://localhost:8001" // default
+	}
+	aiClient := ai_checker.NewClient(aiServiceURL, cfg.AIServiceKey)
+	aiHandler := ai_checker.NewHandler(aiClient, nil) // proposalRepo adapter can be added later
+	log.Println("AI checker service initialized")
+
+	// 16. Initialize Audit Handler
+	auditRepo := audit.NewRepository(db)
+	auditHandler := audit.NewHandler(auditRepo)
+	log.Println("Audit handler initialized")
+
 	return &App{
-		Config:            cfg,
-		DB:                db,
-		AuditLogger:       auditLogger,
-		AuthService:       authService,
-		AuthHandler:       authHandler,
-		UniversityHandler: universityHandler,
-		DepartmentHandler: departmentHandler,
-		UserHandler:       userHandler,
-		TeamHandler:       teamHandler,
-		ProposalHandler:   proposalHandler,
-		FeedbackHandler:   feedbackHandler,
-		ProjectHandler:    projectHandler,
+		Config:               cfg,
+		DB:                   db,
+		AuditLogger:          auditLogger,
+		AuthService:          authService,
+		AuthHandler:          authHandler,
+		UniversityHandler:    universityHandler,
+		DepartmentHandler:    departmentHandler,
+		UserHandler:          userHandler,
+		TeamHandler:          teamHandler,
+		ProposalHandler:      proposalHandler,
+		FeedbackHandler:      feedbackHandler,
+		ProjectHandler:       projectHandler,
 		DocumentationHandler: documentationHandler,
+		NotificationHandler:  notificationHandler,
+		ReviewHandler:        reviewHandler,
+		AIHandler:            aiHandler,
+		AuditHandler:         auditHandler,
 	}, nil
 }
