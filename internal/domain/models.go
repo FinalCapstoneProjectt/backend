@@ -183,6 +183,7 @@ type ProjectReview struct {
 	Rate      int       `json:"rate"`
 	Comment   string    `json:"comment"`
 	CreatedAt time.Time `json:"created_at"`
+	User      User      `gorm:"foreignKey:UserID" json:"user"`
 }
 
 type Notification struct {

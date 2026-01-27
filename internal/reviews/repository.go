@@ -32,6 +32,7 @@ func (r *repository) Create(review *domain.ProjectReview) error {
 func (r *repository) GetByProjectID(projectID uint) ([]domain.ProjectReview, error) {
 	var reviews []domain.ProjectReview
 	err := r.db.Where("project_id = ?", projectID).
+		Preload("User").
 		Order("created_at DESC").
 		Find(&reviews).Error
 	return reviews, err
@@ -50,6 +51,7 @@ func (r *repository) GetAverageRating(projectID uint) (float64, error) {
 	var avg float64
 	err := r.db.Model(&domain.ProjectReview{}).
 		Where("project_id = ?", projectID).
+		Preload("User").
 		Select("COALESCE(AVG(rate), 0)").
 		Scan(&avg).Error
 	return avg, err

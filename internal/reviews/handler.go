@@ -21,7 +21,7 @@ func NewHandler(service *Service) *Handler {
 
 // CreateReviewRequest represents the request body for creating a review
 type CreateReviewRequest struct {
-	Rating  int    `json:"rating" binding:"required,min=1,max=5"`
+	Rate    int    `json:"rate" binding:"required,min=1,max=5"`
 	Comment string `json:"comment" binding:"max=500"`
 }
 
@@ -61,7 +61,7 @@ func (h *Handler) CreateReview(c *gin.Context) {
 		return
 	}
 
-	review, avgRating, err := h.service.CreateReview(userClaims.UserID, uint(projectID), req.Rating, req.Comment)
+	review, avgRating, err := h.service.CreateReview(userClaims.UserID, uint(projectID), req.Rate, req.Comment)
 	if err != nil {
 		switch err.Error() {
 		case "project not found":
