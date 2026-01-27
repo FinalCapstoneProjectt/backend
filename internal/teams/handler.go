@@ -32,6 +32,15 @@ type RespondInvitationRequest struct {
 	Accept bool `json:"accept"`
 }
 
+type AdvisorResponseRequest struct {
+	Decision string `json:"decision" binding:"required"` // "approve" or "reject"
+	Comment  string `json:"comment" binding:"required,min=10"`
+}
+
+type AssignAdvisorRequest struct {
+	AdvisorID uint `json:"advisor_id" binding:"required"`
+}
+
 // CreateTeam godoc
 // @Summary Create a new team
 // @Description Student creates a new team and becomes the leader
@@ -359,6 +368,101 @@ func (h *Handler) DeleteTeam(c *gin.Context) {
 	}
 
 	response.JSON(c, http.StatusOK, "Team deleted successfully", nil)
+}
+
+// AdvisorResponse godoc
+// @Summary Advisor responds to team assignment
+// @Description Advisor approves or rejects being assigned to a team
+// @Tags Teams
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Team ID"
+// @Param response body AdvisorResponseRequest true "Approval decision"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Router /teams/{id}/advisor-response [post]
+func (h *Handler) AdvisorResponse(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil {
+		return
+	}
+
+	teamID := parseID(c)
+	if teamID == 0 {
+		return
+	}
+
+	var req AdvisorResponseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	if req.Decision != "approve" && req.Decision != "reject" {
+		response.Error(c, http.StatusBadRequest, "Decision must be 'approve' or 'reject'", nil)
+		return
+	}
+
+	err := h.service.AdvisorResponse(teamID, claims.UserID, req.Decision, req.Comment)
+	if err != nil {
+		if err.Error() == "only assigned advisor can respond" {
+			response.Error(c, http.StatusForbidden, err.Error(), nil)
+			return
+		}
+		response.Error(c, http.StatusBadRequest, "Failed to process advisor response", err.Error())
+		return
+	}
+
+	message := "Team approved"
+	if req.Decision == "reject" {
+		message = "Team rejected"
+	}
+	response.JSON(c, http.StatusOK, message, nil)
+}
+
+// AssignAdvisor godoc
+// @Summary Assign advisor to team
+// @Description Team leader assigns an advisor to the team
+// @Tags Teams
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Team ID"
+// @Param request body AssignAdvisorRequest true "Advisor ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Router /teams/{id}/assign-advisor [post]
+func (h *Handler) AssignAdvisor(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil {
+		return
+	}
+
+	teamID := parseID(c)
+	if teamID == 0 {
+		return
+	}
+
+	var req AssignAdvisorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	err := h.service.AssignAdvisor(teamID, claims.UserID, req.AdvisorID)
+	if err != nil {
+		if err.Error() == "only team leader can assign advisor" {
+			response.Error(c, http.StatusForbidden, err.Error(), nil)
+			return
+		}
+		response.Error(c, http.StatusBadRequest, "Failed to assign advisor", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Advisor assigned successfully", nil)
 }
 
 // Helpers

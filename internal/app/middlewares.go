@@ -4,8 +4,9 @@ import (
 	"backend/config"
 	"backend/internal/auth"
 	"backend/pkg/audit"
+	"backend/pkg/enums"
 	"backend/pkg/response"
-	"backend/pkg/enums" 
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -194,7 +195,7 @@ func AuditMiddleware(auditLogger *audit.Logger) gin.HandlerFunc {
 	}
 }
 
-// RateLimitMiddleware implements simple rate limiting
+// RateLimitMiddleware implements simple rate limiting with headers
 func RateLimitMiddleware() gin.HandlerFunc {
 	type client struct {
 		requests  int
@@ -202,6 +203,7 @@ func RateLimitMiddleware() gin.HandlerFunc {
 	}
 
 	clients := make(map[string]*client)
+	limit := 100 // requests per minute
 
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
@@ -214,18 +216,27 @@ func RateLimitMiddleware() gin.HandlerFunc {
 				requests:  1,
 				resetTime: now.Add(1 * time.Minute),
 			}
-			c.Next()
-			return
+			cl = clients[ip]
+		} else {
+			cl.requests++
 		}
 
-		// Check rate limit (100 requests per minute)
-		if cl.requests >= 100 {
+		// Set rate limit headers
+		remaining := limit - cl.requests
+		if remaining < 0 {
+			remaining = 0
+		}
+		c.Writer.Header().Set("X-RateLimit-Limit", "100")
+		c.Writer.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
+		c.Writer.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", cl.resetTime.Unix()))
+
+		// Check rate limit
+		if cl.requests > limit {
 			response.Error(c, http.StatusTooManyRequests, "Rate limit exceeded", nil)
 			c.Abort()
 			return
 		}
 
-		cl.requests++
 		c.Next()
 	}
 }

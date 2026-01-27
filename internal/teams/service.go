@@ -230,3 +230,46 @@ func (s *Service) DeleteTeam(teamID, requesterID uint) error {
 
 	return s.repo.Delete(teamID)
 }
+
+// 8. Assign Advisor
+func (s *Service) AssignAdvisor(teamID, requesterID, advisorID uint) error {
+	team, err := s.repo.GetByID(teamID)
+	if err != nil {
+		return err
+	}
+
+	// Rule: Only Leader can assign
+	if !s.isLeader(team, requesterID) {
+		return errors.New("only team leader can assign advisor")
+	}
+
+	// Rule: Cannot change advisor if finalized
+	if team.IsFinalized {
+		return errors.New("cannot change advisor: team is finalized")
+	}
+
+	return s.repo.AssignAdvisor(teamID, advisorID)
+}
+
+// 9. Advisor Response (approve/reject team assignment)
+func (s *Service) AdvisorResponse(teamID, advisorID uint, decision, comment string) error {
+	team, err := s.repo.GetByID(teamID)
+	if err != nil {
+		return err
+	}
+
+	// Rule: Only assigned advisor can respond
+	if team.AdvisorID == nil || *team.AdvisorID != advisorID {
+		return errors.New("only assigned advisor can respond")
+	}
+
+	// Apply decision
+	if decision == "approve" {
+		// Approve the team - can now create proposals
+		team.IsFinalized = true
+		return s.repo.Update(team)
+	} else {
+		// Reject - remove advisor assignment
+		return s.repo.RemoveAdvisor(teamID)
+	}
+}

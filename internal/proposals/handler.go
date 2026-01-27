@@ -316,3 +316,76 @@ func (h *Handler) AssignAdvisor(c *gin.Context) {
     }
     response.JSON(c, http.StatusOK, "Advisor assigned successfully", nil)
 }
+
+// StartReview godoc
+// @Summary Start reviewing a proposal
+// @Description Advisor starts reviewing a submitted proposal (transitions to under_review)
+// @Tags Proposals
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Router /proposals/{id}/start-review [post]
+func (h *Handler) StartReview(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil {
+		return
+	}
+
+	proposalID := parseID(c)
+	if proposalID == 0 {
+		return
+	}
+
+	err := h.service.StartReview(proposalID, claims.UserID)
+	if err != nil {
+		if err.Error() == "only assigned advisor can start review" {
+			response.Error(c, http.StatusForbidden, err.Error(), nil)
+			return
+		}
+		response.Error(c, http.StatusBadRequest, "Failed to start review", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Review started", nil)
+}
+
+// CreateVersion godoc
+// @Summary Create a new proposal version
+// @Description Creates a new version for a proposal (for revision_required status)
+// @Tags Proposals
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Proposal ID"
+// @Param version body SaveProposalRequest true "Version details"
+// @Success 201 {object} response.Response{data=domain.ProposalVersion}
+// @Failure 400 {object} response.ErrorResponse
+// @Router /proposals/{id}/versions [post]
+func (h *Handler) CreateVersion(c *gin.Context) {
+	claims := getClaims(c)
+	if claims == nil {
+		return
+	}
+
+	proposalID := parseID(c)
+	if proposalID == 0 {
+		return
+	}
+
+	var req SaveProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
+		return
+	}
+
+	version, err := h.service.CreateVersion(proposalID, h.mapRequestToInput(req), claims.UserID)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Failed to create version", err.Error())
+		return
+	}
+
+	response.JSON(c, http.StatusCreated, "Version created successfully", version)
+}

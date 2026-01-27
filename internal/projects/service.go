@@ -138,3 +138,30 @@ func (s *Service) PublishProject(id uint, userID uint, role enums.Role) error {
 
 	return s.repo.UpdateVisibility(id, "public")
 }
+
+// GetPublicProjects returns public projects with search and pagination
+func (s *Service) GetPublicProjects(filters map[string]interface{}) ([]domain.Project, int, error) {
+	return s.repo.GetPublicProjects(filters)
+}
+
+// GetPublicProject returns a single public project (increments view count)
+func (s *Service) GetPublicProject(id uint) (*domain.Project, error) {
+	project, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, errors.New("project not found")
+	}
+
+	if project.Visibility != "public" {
+		return nil, errors.New("project is not public")
+	}
+
+	// Increment view count
+	_ = s.repo.IncrementViewCount(id)
+
+	return project, nil
+}
+
+// IncrementShareCount increments and returns the new share count
+func (s *Service) IncrementShareCount(id uint) (int, error) {
+	return s.repo.IncrementShareCount(id)
+}

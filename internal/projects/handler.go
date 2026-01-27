@@ -17,6 +17,130 @@ func NewHandler(s *Service) *Handler {
 	return &Handler{service: s}
 }
 
+// GetPublicProjects godoc
+// @Summary List all public projects
+// @Description Get all public projects without authentication
+// @Tags Projects
+// @Produce json
+// @Param department_id query int false "Filter by department ID"
+// @Param year query int false "Filter by year"
+// @Param search query string false "Search in title and summary"
+// @Param sort query string false "Sort by: rating, date, views (default: rating)"
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 20)"
+// @Success 200 {object} response.Response{data=[]domain.Project}
+// @Failure 500 {object} response.ErrorResponse
+// @Router /projects/public [get]
+func (h *Handler) GetPublicProjects(c *gin.Context) {
+	filters := make(map[string]interface{})
+	filters["visibility"] = "public"
+
+	if deptID := c.Query("department_id"); deptID != "" {
+		filters["department_id"] = deptID
+	}
+	if year := c.Query("year"); year != "" {
+		filters["year"] = year
+	}
+	if search := c.Query("search"); search != "" {
+		filters["search"] = search
+	}
+	if sort := c.Query("sort"); sort != "" {
+		filters["sort"] = sort
+	}
+
+	// Pagination
+	page := 1
+	limit := 20
+	if p := c.Query("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+	filters["page"] = page
+	filters["limit"] = limit
+
+	projects, total, err := h.service.GetPublicProjects(filters)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to fetch projects", err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"projects": projects,
+		"pagination": gin.H{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+			"pages": (total + limit - 1) / limit,
+		},
+	})
+}
+
+// GetPublicProject godoc
+// @Summary Get public project by ID
+// @Description Retrieve a public project without authentication
+// @Tags Projects
+// @Produce json
+// @Param id path int true "Project ID"
+// @Success 200 {object} response.Response{data=domain.Project}
+// @Failure 400 {object} response.ErrorResponse
+// @Failure 403 {object} response.ErrorResponse
+// @Failure 404 {object} response.ErrorResponse
+// @Router /projects/public/{id} [get]
+func (h *Handler) GetPublicProject(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid project ID", err.Error())
+		return
+	}
+
+	project, err := h.service.GetPublicProject(uint(id))
+	if err != nil {
+		if err.Error() == "project not found" {
+			response.Error(c, http.StatusNotFound, "Project not found", nil)
+			return
+		}
+		if err.Error() == "project is not public" {
+			response.Error(c, http.StatusForbidden, "This project is not publicly accessible", nil)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "Failed to fetch project", err.Error())
+		return
+	}
+
+	response.Success(c, project)
+}
+
+// IncrementShareCount godoc
+// @Summary Increment project share count
+// @Description Track when a project is shared
+// @Tags Projects
+// @Produce json
+// @Param id path int true "Project ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse
+// @Router /projects/{id}/share [post]
+func (h *Handler) IncrementShareCount(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid project ID", err.Error())
+		return
+	}
+
+	newCount, err := h.service.IncrementShareCount(uint(id))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to update share count", err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"share_count": newCount})
+}
+
 // CreateProject godoc
 // @Summary Create project from approved proposal
 // @Description Convert an approved proposal into a formal project
