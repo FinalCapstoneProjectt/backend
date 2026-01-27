@@ -1,6 +1,7 @@
 package proposals
 
 import (
+	"backend/internal/ai_checker"
 	"backend/internal/auth"
 	"backend/pkg/response"
 	"fmt"
@@ -11,11 +12,12 @@ import (
 )
 
 type Handler struct {
-	service *Service
+	service  *Service
+	aiClient *ai_checker.Client
 }
 
-func NewHandler(s *Service) *Handler {
-	return &Handler{service: s}
+func NewHandler(s *Service, aiClient *ai_checker.Client) *Handler {
+	return &Handler{service: s, aiClient: aiClient}
 }
 
 // DTOs
@@ -46,7 +48,9 @@ type SubmitProposalRequest struct {
 // @Router /proposals [post]
 func (h *Handler) CreateProposal(c *gin.Context) {
 	claims := getClaims(c)
-	if claims == nil { return }
+	if claims == nil {
+		return
+	}
 
 	var req SaveProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -76,26 +80,30 @@ func (h *Handler) CreateProposal(c *gin.Context) {
 // @Router /proposals/{id} [put]
 func (h *Handler) UpdateProposal(c *gin.Context) {
 	claims := getClaims(c)
-	if claims == nil { return }
+	if claims == nil {
+		return
+	}
 
 	proposalID := parseID(c)
-	if proposalID == 0 { return }
+	if proposalID == 0 {
+		return
+	}
 
 	var req SaveProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-        // 👇 LOGGING ADDED
-        fmt.Println("❌ JSON BIND ERROR:", err)
+		// 👇 LOGGING ADDED
+		fmt.Println("❌ JSON BIND ERROR:", err)
 		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
 		return
 	}
 
-    // 👇 LOGGING ADDED
-    fmt.Printf("📥 HANDLER RECEIVED: TeamID=%v, Title=%s\n", req.TeamID, req.Title)
-    if req.TeamID != nil {
-        fmt.Printf("   -> TeamID Value: %d\n", *req.TeamID)
-    } else {
-        fmt.Println("   -> TeamID is NIL")
-    }
+	// 👇 LOGGING ADDED
+	fmt.Printf("📥 HANDLER RECEIVED: TeamID=%v, Title=%s\n", req.TeamID, req.Title)
+	if req.TeamID != nil {
+		fmt.Printf("   -> TeamID Value: %d\n", *req.TeamID)
+	} else {
+		fmt.Println("   -> TeamID is NIL")
+	}
 
 	result, err := h.service.UpdateProposal(proposalID, h.mapRequestToInput(req), claims.UserID)
 	if err != nil {
@@ -120,10 +128,14 @@ func (h *Handler) UpdateProposal(c *gin.Context) {
 // @Router /proposals/{id}/submit [post]
 func (h *Handler) SubmitProposal(c *gin.Context) {
 	claims := getClaims(c)
-	if claims == nil { return }
+	if claims == nil {
+		return
+	}
 
 	proposalID := parseID(c)
-	if proposalID == 0 { return }
+	if proposalID == 0 {
+		return
+	}
 
 	var req SubmitProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -137,7 +149,30 @@ func (h *Handler) SubmitProposal(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, "Proposal submitted successfully", nil)
+	data := gin.H{}
+	if h.aiClient != nil {
+		version, verErr := h.service.GetLatestVersion(proposalID)
+		if verErr != nil {
+			data["ai_error"] = verErr.Error()
+		} else {
+			aiResult, aiErr := h.aiClient.CheckProposalText(c.Request.Context(), ai_checker.ProposalCheckRequest{
+				Title:      version.Title,
+				Objectives: version.Objectives,
+			})
+			if aiErr != nil {
+				data["ai_error"] = aiErr.Error()
+			} else {
+				data["ai_result"] = aiResult
+			}
+		}
+	}
+
+	if len(data) == 0 {
+		response.JSON(c, http.StatusOK, "Proposal submitted successfully", nil)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Proposal submitted successfully", data)
 }
 
 // GET /proposals
@@ -154,18 +189,20 @@ func (h *Handler) SubmitProposal(c *gin.Context) {
 // @Router /proposals [get]
 func (h *Handler) GetProposals(c *gin.Context) {
 	claims := getClaims(c)
-	if claims == nil { return }
+	if claims == nil {
+		return
+	}
 
 	status := c.Query("status")
 
 	// Call service with user context from token
 	proposals, err := h.service.GetProposals(
-		status, 
-		claims.UserID, 
-		claims.Role, 
+		status,
+		claims.UserID,
+		claims.Role,
 		claims.DepartmentID,
 	)
-	
+
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to fetch proposals", err.Error())
 		return
@@ -188,15 +225,19 @@ func (h *Handler) GetProposals(c *gin.Context) {
 // @Router /proposals/{id} [get]
 func (h *Handler) GetProposal(c *gin.Context) {
 	claims := getClaims(c)
-	if claims == nil { return }
+	if claims == nil {
+		return
+	}
 
 	proposalID := parseID(c)
-	if proposalID == 0 { return }
+	if proposalID == 0 {
+		return
+	}
 
 	proposal, err := h.service.GetProposal(
-		proposalID, 
-		claims.UserID, 
-		claims.Role, 
+		proposalID,
+		claims.UserID,
+		claims.Role,
 		claims.DepartmentID,
 	)
 
@@ -212,6 +253,7 @@ func (h *Handler) GetProposal(c *gin.Context) {
 
 	response.Success(c, proposal)
 }
+
 // GetProposal godoc
 // @Summary Get proposal by ID
 // @Description Retrieve a specific proposal by its ID
@@ -224,7 +266,9 @@ func (h *Handler) GetProposal(c *gin.Context) {
 // @Router /proposals/{id}/versions [get]
 func (h *Handler) GetVersions(c *gin.Context) {
 	id := parseID(c)
-	if id == 0 { return }
+	if id == 0 {
+		return
+	}
 
 	versions, err := h.service.GetVersions(id)
 	if err != nil {
@@ -247,7 +291,9 @@ func (h *Handler) GetVersions(c *gin.Context) {
 // @Router /proposals/{id} [delete]
 func (h *Handler) DeleteProposal(c *gin.Context) {
 	id := parseID(c)
-	if id == 0 { return }
+	if id == 0 {
+		return
+	}
 
 	err := h.service.DeleteProposal(id)
 	if err != nil {
@@ -292,7 +338,7 @@ func parseID(c *gin.Context) uint {
 }
 
 type AssignAdvisorRequest struct {
-    AdvisorID uint `json:"advisor_id" binding:"required"`
+	AdvisorID uint `json:"advisor_id" binding:"required"`
 }
 
 // AssignAdvisor godoc
@@ -303,89 +349,16 @@ type AssignAdvisorRequest struct {
 // @Security BearerAuth
 // @Router /proposals/{id}/assign [patch]
 func (h *Handler) AssignAdvisor(c *gin.Context) {
-    id := parseID(c) // Helper
-    var req AssignAdvisorRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        response.Error(c, http.StatusBadRequest, "Invalid ID", err.Error())
-        return
-    }
-
-    if err := h.service.AssignAdvisor(id, req.AdvisorID); err != nil {
-        response.Error(c, http.StatusInternalServerError, "Assignment failed", err.Error())
-        return
-    }
-    response.JSON(c, http.StatusOK, "Advisor assigned successfully", nil)
-}
-
-// StartReview godoc
-// @Summary Start reviewing a proposal
-// @Description Advisor starts reviewing a submitted proposal (transitions to under_review)
-// @Tags Proposals
-// @Produce json
-// @Security BearerAuth
-// @Param id path int true "Proposal ID"
-// @Success 200 {object} response.Response
-// @Failure 400 {object} response.ErrorResponse
-// @Failure 403 {object} response.ErrorResponse
-// @Router /proposals/{id}/start-review [post]
-func (h *Handler) StartReview(c *gin.Context) {
-	claims := getClaims(c)
-	if claims == nil {
-		return
-	}
-
-	proposalID := parseID(c)
-	if proposalID == 0 {
-		return
-	}
-
-	err := h.service.StartReview(proposalID, claims.UserID)
-	if err != nil {
-		if err.Error() == "only assigned advisor can start review" {
-			response.Error(c, http.StatusForbidden, err.Error(), nil)
-			return
-		}
-		response.Error(c, http.StatusBadRequest, "Failed to start review", err.Error())
-		return
-	}
-
-	response.JSON(c, http.StatusOK, "Review started", nil)
-}
-
-// CreateVersion godoc
-// @Summary Create a new proposal version
-// @Description Creates a new version for a proposal (for revision_required status)
-// @Tags Proposals
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path int true "Proposal ID"
-// @Param version body SaveProposalRequest true "Version details"
-// @Success 201 {object} response.Response{data=domain.ProposalVersion}
-// @Failure 400 {object} response.ErrorResponse
-// @Router /proposals/{id}/versions [post]
-func (h *Handler) CreateVersion(c *gin.Context) {
-	claims := getClaims(c)
-	if claims == nil {
-		return
-	}
-
-	proposalID := parseID(c)
-	if proposalID == 0 {
-		return
-	}
-
-	var req SaveProposalRequest
+	id := parseID(c) // Helper
+	var req AssignAdvisorRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid inputs", err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid ID", err.Error())
 		return
 	}
 
-	version, err := h.service.CreateVersion(proposalID, h.mapRequestToInput(req), claims.UserID)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "Failed to create version", err.Error())
+	if err := h.service.AssignAdvisor(id, req.AdvisorID); err != nil {
+		response.Error(c, http.StatusInternalServerError, "Assignment failed", err.Error())
 		return
 	}
-
-	response.JSON(c, http.StatusCreated, "Version created successfully", version)
+	response.JSON(c, http.StatusOK, "Advisor assigned successfully", nil)
 }
